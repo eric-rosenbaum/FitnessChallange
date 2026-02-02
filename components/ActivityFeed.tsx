@@ -41,19 +41,19 @@ export default function ActivityFeed({ feedItems, challenge }: ActivityFeedProps
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4">
-      <h2 className="text-lg font-semibold text-gray-900 mb-3">Activity Feed</h2>
+    <div className="glass-card rounded-2xl soft-shadow-lg p-5 mb-4 border border-white/50">
+      <h2 className="text-xl font-semibold text-gray-800 tracking-tight mb-4">Activity Feed</h2>
       {feedItems.length === 0 ? (
         <p className="text-sm text-gray-500">No activity yet.</p>
       ) : (
         <div className="space-y-3">
           {feedItems.map(item => (
-            <div key={item.id} className="text-sm">
+            <div key={item.id} className="text-sm p-3 rounded-xl hover:bg-gray-50/50 transition-colors">
               <div className="flex items-start gap-2">
-                <span className="font-medium text-gray-900">{item.display_name}</span>
-                <span className="text-gray-600">{formatActivity(item)}</span>
+                <span className="font-semibold text-gray-800">{item.display_name}</span>
+                <span className="text-gray-600 font-medium">{formatActivity(item)}</span>
               </div>
-              <div className="text-xs text-gray-500 mt-0.5">{formatTime(item.created_at)}</div>
+              <div className="text-xs text-gray-500 mt-1 font-medium">{formatTime(item.created_at)}</div>
             </div>
           ))}
         </div>

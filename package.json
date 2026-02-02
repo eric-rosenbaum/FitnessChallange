@@ -21,6 +21,8 @@
   },
   "homepage": "https://github.com/eric-rosenbaum/FitnessChallange#readme",
   "dependencies": {
+    "@supabase/ssr": "^0.8.0",
+    "@supabase/supabase-js": "^2.93.3",
     "@types/node": "^25.2.0",
     "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",

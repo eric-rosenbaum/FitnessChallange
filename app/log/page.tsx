@@ -3,23 +3,32 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import type { WorkoutLog, CardioActivity } from '@/types'
-import {
-  dummyCurrentUserId,
-  getActiveWeek,
-} from '@/lib/dummyData'
+import type { CardioActivity } from '@/types'
 import { useApp } from '@/context/AppContext'
+import { useUserGroup } from '@/lib/hooks/useUserGroup'
+import { getActiveWeek } from '@/lib/db/queries'
+import { createWorkoutLog, updateWorkoutLog } from '@/lib/db/queries'
+import { createClient } from '@/lib/supabase/client'
 
 function LogPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const editLogId = searchParams.get('edit')
-  const { logs, updateLog, addLog } = useApp()
+  const { user, logs, refreshLogs, challenge, exercises } = useApp()
+  const { group } = useUserGroup()
+  const [activeWeek, setActiveWeek] = useState<any>(null)
   const [activeTab, setActiveTab] = useState<'cardio' | 'strength'>('cardio')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const supabase = createClient()
   
-  const activeWeek = getActiveWeek()
-  const editingLog = editLogId ? logs.find(log => log.id === editLogId && log.user_id === dummyCurrentUserId) : null
+  const editingLog = editLogId ? logs.find(log => log.id === editLogId && log.user_id === user?.id) : null
+  
+  // Fetch active week
+  useEffect(() => {
+    if (group) {
+      getActiveWeek(group.id).then(setActiveWeek)
+    }
+  }, [group])
   
   // Form state
   const [cardioActivity, setCardioActivity] = useState<CardioActivity>('run')
@@ -48,81 +57,84 @@ function LogPageContent() {
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!user || !group || !activeWeek?.challenge) return
+    
     setIsSubmitting(true)
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 300))
-    
-    if (editingLog) {
-      // Update existing log
-      updateLog(editingLog.id, {
-        logged_at: loggedDate,
-        note: note || undefined,
-        ...(activeTab === 'cardio' ? {
-          cardio_activity: cardioActivity,
-          cardio_amount: parseFloat(cardioAmount),
-        } : {
-          exercise_id: exerciseId,
-          strength_reps: parseInt(strengthReps),
-        }),
-      })
-    } else {
-      // Create new log
-      const newLog: WorkoutLog = {
-        id: `log-${Date.now()}`,
-        group_id: activeWeek.week_assignment.group_id,
-        week_challenge_id: activeWeek.challenge!.id,
-        user_id: dummyCurrentUserId,
-        logged_at: loggedDate,
-        created_at: new Date().toISOString(),
-        log_type: activeTab,
-        ...(activeTab === 'cardio' ? {
-          cardio_activity: cardioActivity,
-          cardio_amount: parseFloat(cardioAmount),
-        } : {
-          exercise_id: exerciseId,
-          strength_reps: parseInt(strengthReps),
-        }),
-        note: note || undefined,
+    try {
+      if (editingLog) {
+        // Update existing log
+        await updateWorkoutLog(editingLog.id, {
+          logged_at: loggedDate,
+          note: note || undefined,
+          ...(activeTab === 'cardio' ? {
+            cardio_activity: cardioActivity,
+            cardio_amount: parseFloat(cardioAmount),
+          } : {
+            exercise_id: exerciseId,
+            strength_reps: parseInt(strengthReps),
+          }),
+        })
+      } else {
+        // Create new log
+        await createWorkoutLog({
+          group_id: group.id,
+          week_challenge_id: activeWeek.challenge.id,
+          user_id: user.id,
+          logged_at: loggedDate,
+          log_type: activeTab,
+          ...(activeTab === 'cardio' ? {
+            cardio_activity: cardioActivity,
+            cardio_amount: parseFloat(cardioAmount),
+          } : {
+            exercise_id: exerciseId,
+            strength_reps: parseInt(strengthReps),
+          }),
+          note: note || undefined,
+        })
       }
-      addLog(newLog)
+      
+      // Refresh logs
+      await refreshLogs(activeWeek.challenge.id)
+      router.push('/')
+    } catch (error: any) {
+      alert('Error: ' + (error.message || 'Failed to save log'))
+      setIsSubmitting(false)
     }
-    
-    setIsSubmitting(false)
-    router.push('/')
   }
   
-  if (!activeWeek.challenge) {
+  if (!activeWeek?.challenge) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 text-center max-w-md">
-          <p className="text-gray-600 mb-4">No active challenge for this week</p>
-          <Link href="/" className="text-blue-600 hover:underline">Back to home</Link>
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="glass-card rounded-2xl soft-shadow-lg p-6 text-center max-w-md border border-white/50">
+          <p className="text-gray-700 mb-4 font-medium">No active challenge for this week</p>
+          <Link href="/" className="text-emerald-600 hover:text-emerald-700 hover:underline font-medium">Back to home</Link>
         </div>
       </div>
     )
   }
   
   const metricLabel = activeWeek.challenge.cardio_metric === 'miles' ? 'Miles' : 'Minutes'
+  const currentExercises = exercises.length > 0 ? exercises : activeWeek.exercises
   
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen">
       <div className="max-w-2xl mx-auto px-4 py-6">
         <div className="mb-6">
-          <Link href="/" className="text-blue-600 hover:underline text-sm">← Back to home</Link>
-          <h1 className="text-2xl font-bold text-gray-900 mt-2">
+          <Link href="/" className="text-emerald-600 hover:text-emerald-700 hover:underline text-sm font-medium">← Back to home</Link>
+          <h1 className="text-2xl font-bold text-gray-800 mt-2 tracking-tight">
             {editingLog ? 'Edit Workout' : 'Log Workout'}
           </h1>
         </div>
         
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div className="glass-card rounded-2xl soft-shadow-lg border border-white/50">
           {/* Tabs */}
-          <div className="flex border-b border-gray-200">
+          <div className="flex border-b border-gray-200/50">
             <button
               onClick={() => setActiveTab('cardio')}
               className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
                 activeTab === 'cardio'
-                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  ? 'text-emerald-600 border-b-2 border-emerald-600'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -132,7 +144,7 @@ function LogPageContent() {
               onClick={() => setActiveTab('strength')}
               className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
                 activeTab === 'strength'
-                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  ? 'text-emerald-600 border-b-2 border-emerald-600'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -151,7 +163,7 @@ function LogPageContent() {
                   <select
                     value={cardioActivity}
                     onChange={(e) => setCardioActivity(e.target.value as CardioActivity)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
                     required
                   >
                     <option value="run">Run</option>
@@ -170,7 +182,7 @@ function LogPageContent() {
                     min="0"
                     value={cardioAmount}
                     onChange={(e) => setCardioAmount(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
                     required
                   />
                 </div>
@@ -184,11 +196,11 @@ function LogPageContent() {
                   <select
                     value={exerciseId}
                     onChange={(e) => setExerciseId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
                     required
                   >
                     <option value="">Select exercise</option>
-                    {activeWeek.exercises.map(ex => (
+                    {currentExercises.map((ex: any) => (
                       <option key={ex.id} value={ex.id}>
                         {ex.name}
                       </option>
@@ -204,7 +216,7 @@ function LogPageContent() {
                     min="1"
                     value={strengthReps}
                     onChange={(e) => setStrengthReps(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
                     required
                   />
                 </div>
@@ -219,7 +231,7 @@ function LogPageContent() {
                 type="date"
                 value={loggedDate}
                 onChange={(e) => setLoggedDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
                 required
               />
             </div>
@@ -232,7 +244,7 @@ function LogPageContent() {
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
                 placeholder="Add a note about your workout..."
               />
             </div>
@@ -240,14 +252,14 @@ function LogPageContent() {
             <div className="flex gap-3 pt-4">
               <Link
                 href="/"
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-center"
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 text-center font-medium"
               >
                 Cancel
               </Link>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 px-4 py-3 gradient-green-translucent text-white rounded-xl hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed soft-shadow font-medium transition-all"
               >
                 {isSubmitting ? 'Saving...' : editingLog ? 'Update' : 'Log Workout'}
               </button>

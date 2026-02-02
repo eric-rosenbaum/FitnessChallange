@@ -27,8 +27,8 @@ function DonutChart({ progress, size = 80, strokeWidth = 8, color = 'blue' }: Do
   const offset = circumference - (progress * circumference)
   
   const colorClasses = {
-    blue: 'stroke-blue-500 opacity-70',
-    green: 'stroke-green-500 opacity-70',
+    blue: 'stroke-blue-400 opacity-75',
+    green: 'stroke-emerald-400 opacity-75',
   }
   
   return (
@@ -40,7 +40,7 @@ function DonutChart({ progress, size = 80, strokeWidth = 8, color = 'blue' }: Do
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="#e5e7eb"
+          stroke="rgba(229, 231, 235, 0.5)"
           strokeWidth={strokeWidth}
         />
         {/* Progress circle */}
@@ -58,7 +58,7 @@ function DonutChart({ progress, size = 80, strokeWidth = 8, color = 'blue' }: Do
         />
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-base font-semibold text-gray-900">
+        <span className="text-lg font-bold text-gray-800">
           {Math.round(progress * 100)}%
         </span>
       </div>
@@ -100,12 +100,12 @@ export default function ProgressCard({
   })
   
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 mb-4">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-lg font-semibold text-gray-900">
+    <div className="glass-card rounded-2xl soft-shadow-lg p-5 mb-4 border border-white/50">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-semibold text-gray-800 tracking-tight">
           Your Progress (week of {weekLabel})
         </h2>
-        <span className="text-sm text-gray-600">
+        <span className="text-sm text-gray-600 font-medium">
           {daysRemaining} {daysRemaining === 1 ? 'day' : 'days'} left in week
         </span>
       </div>
@@ -114,20 +114,20 @@ export default function ProgressCard({
       <div className="grid grid-cols-2 gap-2">
         {/* Cardio Progress */}
         <div className="flex flex-col items-center">
-          <div className="text-sm font-medium text-gray-700 mb-1">Cardio</div>
+          <div className="text-sm font-semibold text-gray-800 mb-2 tracking-wide">Cardio</div>
           <DonutChart
             progress={progress.cardio_progress}
             size={200}
             strokeWidth={28}
             color="green"
           />
-          <div className="text-sm text-gray-900 mt-1 text-center mb-2">
+          <div className="text-sm font-medium text-gray-800 mt-2 text-center mb-3">
             {progress.cardio_total.toFixed(1)} / {challenge.cardio_target} {challenge.cardio_metric}
           </div>
           {/* Cardio Breakdown */}
-          <div className="w-full space-y-0.5 text-center">
+          <div className="w-full space-y-1 text-center">
             {Object.entries(cardioBreakdown).map(([activity, amount]) => (
-              <div key={activity} className="text-xs text-gray-700">
+              <div key={activity} className="text-xs text-gray-600 font-medium">
                 {activity}: {amount.toFixed(1)} {challenge.cardio_metric === 'miles' ? 'mi' : 'min'}
               </div>
             ))}
@@ -136,22 +136,22 @@ export default function ProgressCard({
 
         {/* Strength Overall Progress */}
         <div className="flex flex-col items-center">
-          <div className="text-sm font-medium text-gray-700 mb-1">Strength Overall</div>
+          <div className="text-sm font-semibold text-gray-800 mb-2 tracking-wide">Strength Overall</div>
           <DonutChart
             progress={progress.strength_overall_progress}
             size={200}
             strokeWidth={28}
             color="blue"
           />
-          <div className="text-sm text-gray-900 mt-1 text-center mb-2">
+          <div className="text-sm font-medium text-gray-800 mt-2 text-center mb-3">
             {Math.round(progress.strength_overall_progress * 100)}% complete
           </div>
           {/* Exercise List */}
-          <div className="w-full space-y-0.5 text-center">
+          <div className="w-full space-y-1 text-center">
             {exercises.map(exercise => {
               const total = progress.exercise_totals[exercise.id] || 0
               return (
-                <div key={exercise.id} className="text-xs text-gray-700">
+                <div key={exercise.id} className="text-xs text-gray-600 font-medium">
                   {exercise.name}: {Math.round(total)} / {exercise.target_reps}
                 </div>
               )

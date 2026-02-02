@@ -1,14 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { CardioMetric } from '@/types'
-import {
-  dummyCurrentUserId,
-  getActiveWeek,
-  dummyWeekAssignment,
-} from '@/lib/dummyData'
+import { useApp } from '@/context/AppContext'
+import { useUserGroup } from '@/lib/hooks/useUserGroup'
+import { getActiveWeek, createWeekChallenge, updateWeekChallenge } from '@/lib/db/queries'
 
 interface ExerciseInput {
   id: string
@@ -18,41 +16,96 @@ interface ExerciseInput {
 
 export default function CreateChallengePage() {
   const router = useRouter()
-  const activeWeek = getActiveWeek()
-  const isHost = activeWeek.week_assignment.host_user_id === dummyCurrentUserId
+  const { user, challenge, setChallenge, exercises, setExercises } = useApp()
+  const { group } = useUserGroup()
+  const [activeWeek, setActiveWeek] = useState<any>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   
-  const [startDate, setStartDate] = useState(activeWeek.week_assignment.start_date)
-  const [endDate, setEndDate] = useState(activeWeek.week_assignment.end_date)
   const [cardioMetric, setCardioMetric] = useState<CardioMetric>('miles')
   const [cardioTarget, setCardioTarget] = useState('')
-  const [exercises, setExercises] = useState<ExerciseInput[]>([
+  const [exerciseInputs, setExerciseInputs] = useState<ExerciseInput[]>([
     { id: '1', name: '', targetReps: '' },
   ])
   
+  // Fetch active week
+  useEffect(() => {
+    if (group) {
+      getActiveWeek(group.id).then((week) => {
+        setActiveWeek(week)
+        setIsLoading(false)
+      })
+    }
+  }, [group])
+  
+  // Initialize form with existing challenge if editing
+  useEffect(() => {
+    if (challenge) {
+      setCardioMetric(challenge.cardio_metric)
+      setCardioTarget(challenge.cardio_target.toString())
+      if (exercises.length > 0) {
+        setExerciseInputs(exercises.map((ex) => ({
+          id: ex.id,
+          name: ex.name,
+          targetReps: ex.target_reps.toString(),
+        })))
+      }
+    }
+  }, [challenge, exercises])
+  
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-gray-600">Loading...</div>
+      </div>
+    )
+  }
+  
+  if (!activeWeek) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="glass-card rounded-2xl soft-shadow-lg p-6 text-center max-w-md border border-white/50">
+          <p className="text-gray-700 mb-4 font-medium">No active week assignment found</p>
+          <Link href="/" className="text-emerald-600 hover:text-emerald-700 hover:underline font-medium">Back to home</Link>
+        </div>
+      </div>
+    )
+  }
+  
+  const isHost = activeWeek.week_assignment.host_user_id === user?.id
+  
   if (!isHost) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 text-center max-w-md">
-          <p className="text-gray-600 mb-4">Only the weekly host can create challenges</p>
-          <Link href="/" className="text-blue-600 hover:underline">Back to home</Link>
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="glass-card rounded-2xl soft-shadow-lg p-6 text-center max-w-md border border-white/50">
+          <p className="text-gray-700 mb-4 font-medium">Only the weekly host can create challenges</p>
+          <Link href="/" className="text-emerald-600 hover:text-emerald-700 hover:underline font-medium">Back to home</Link>
         </div>
       </div>
     )
   }
   
   const handleAddExercise = () => {
-    setExercises([...exercises, { id: Date.now().toString(), name: '', targetReps: '' }])
+    setExerciseInputs([...exerciseInputs, { id: Date.now().toString(), name: '', targetReps: '' }])
   }
   
   const handleRemoveExercise = (id: string) => {
-    if (exercises.length > 1) {
-      setExercises(exercises.filter(ex => ex.id !== id))
+    if (exerciseInputs.length > 1) {
+      setExerciseInputs(exerciseInputs.filter(ex => ex.id !== id))
     }
   }
   
   const handleExerciseChange = (id: string, field: 'name' | 'targetReps', value: string) => {
-    setExercises(exercises.map(ex =>
+    if (field === 'name' && value.length > 50) {
+      return // Max 50 characters
+    }
+    if (field === 'targetReps') {
+      // Only allow numbers (including empty string for clearing)
+      if (value && !/^\d+$/.test(value)) {
+        return // Only numbers
+      }
+    }
+    setExerciseInputs(exerciseInputs.map(ex =>
       ex.id === id ? { ...ex, [field]: value } : ex
     ))
   }
@@ -66,38 +119,83 @@ export default function CreateChallengePage() {
       return
     }
     
-    if (exercises.some(ex => !ex.name || !ex.targetReps || parseInt(ex.targetReps) <= 0)) {
+    if (exerciseInputs.some(ex => !ex.name.trim() || !ex.targetReps || parseInt(ex.targetReps) <= 0)) {
       alert('Please fill in all exercise fields with valid values')
       return
     }
     
     setIsSubmitting(true)
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 500))
-    
-    // In real app, this would create the challenge via API
-    // For now, we'll just redirect
-    alert('Challenge created! (This is dummy data - challenge already exists)')
-    setIsSubmitting(false)
+    try {
+      if (!user || !group) {
+        throw new Error('User or group not found')
+      }
+      
+      if (challenge) {
+        // Update existing challenge
+        const { challenge: updatedChallenge, exercises: updatedExercises } = await updateWeekChallenge(
+          challenge.id,
+          cardioMetric,
+          parseFloat(cardioTarget),
+          exerciseInputs.map(ex => ({
+            name: ex.name.trim(),
+            targetReps: parseInt(ex.targetReps),
+          }))
+        )
+        setChallenge(updatedChallenge)
+        setExercises(updatedExercises)
+      } else {
+        // Create new challenge
+        const { challenge: newChallenge, exercises: newExercises } = await createWeekChallenge(
+          group.id,
+          activeWeek.week_assignment.id,
+          user.id,
+          cardioMetric,
+          parseFloat(cardioTarget),
+          exerciseInputs.map(ex => ({
+            name: ex.name.trim(),
+            targetReps: parseInt(ex.targetReps),
+          }))
+        )
+        setChallenge(newChallenge)
+        setExercises(newExercises)
+      }
+      
+      router.push('/')
+    } catch (error: any) {
+      alert('Error: ' + (error.message || 'Failed to save challenge'))
+      setIsSubmitting(false)
+    }
+  }
+  
+  const handleCancel = () => {
     router.push('/')
   }
   
+  const weekLabel = `Week of ${new Date(activeWeek.week_assignment.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+  
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen">
       <div className="max-w-2xl mx-auto px-4 py-6">
         <div className="mb-6">
-          <Link href="/" className="text-blue-600 hover:underline text-sm">← Back to home</Link>
-          <h1 className="text-2xl font-bold text-gray-900 mt-2">Create Weekly Challenge</h1>
-          <p className="text-sm text-gray-600 mt-1">
-            Week: {new Date(startDate).toLocaleDateString()} - {new Date(endDate).toLocaleDateString()}
+          <button
+            onClick={handleCancel}
+            className="text-emerald-600 hover:text-emerald-700 hover:underline text-sm font-medium"
+          >
+            ← Back to home
+          </button>
+          <h1 className="text-2xl font-bold text-gray-800 mt-2 tracking-tight">
+            {challenge ? 'Edit Challenge' : 'Set Challenge'}
+          </h1>
+          <p className="text-sm text-gray-600 mt-1 font-medium">
+            {weekLabel}
           </p>
         </div>
         
-        <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="glass-card rounded-2xl soft-shadow-lg p-6 border border-white/50 space-y-6">
           {/* Cardio Section */}
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Cardio Goal</h2>
+            <h2 className="text-xl font-semibold text-gray-800 mb-4 tracking-tight">Cardio Goal</h2>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -106,24 +204,24 @@ export default function CreateChallengePage() {
                 <select
                   value={cardioMetric}
                   onChange={(e) => setCardioMetric(e.target.value as CardioMetric)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
                 >
-                  <option value="miles">Miles</option>
-                  <option value="minutes">Minutes</option>
+                  <option value="miles">Distance (Miles)</option>
+                  <option value="minutes">Time (Hours/Minutes)</option>
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Target
+                  Target {cardioMetric === 'miles' ? '(Miles)' : '(Minutes)'}
                 </label>
                 <input
                   type="number"
-                  step="0.1"
+                  step={cardioMetric === 'miles' ? '0.1' : '1'}
                   min="0.1"
                   value={cardioTarget}
                   onChange={(e) => setCardioTarget(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="e.g., 20"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
+                  placeholder={cardioMetric === 'miles' ? 'e.g., 20' : 'e.g., 300'}
                   required
                 />
               </div>
@@ -133,44 +231,46 @@ export default function CreateChallengePage() {
           {/* Strength Section */}
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Strength Exercises</h2>
+              <h2 className="text-xl font-semibold text-gray-800 tracking-tight">Strength Exercises</h2>
               <button
                 type="button"
                 onClick={handleAddExercise}
-                className="text-sm text-blue-600 hover:text-blue-800"
+                className="text-sm font-medium text-emerald-600 hover:text-emerald-700 px-3 py-1 rounded-lg hover:bg-emerald-50 transition-colors"
               >
                 + Add Exercise
               </button>
             </div>
-            <div className="space-y-4">
-              {exercises.map((exercise, index) => (
-                <div key={exercise.id} className="flex gap-3 items-start">
+            <div className="space-y-3">
+              {exerciseInputs.map((exercise) => (
+                <div key={exercise.id} className="flex gap-3 items-start p-3 rounded-xl bg-white/30 border border-gray-200/50">
                   <div className="flex-1 space-y-2">
                     <input
                       type="text"
                       value={exercise.name}
                       onChange={(e) => handleExerciseChange(exercise.id, 'name', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      maxLength={50}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50 text-sm"
                       placeholder="Exercise name (e.g., Pushups)"
                       required
                     />
                     <input
-                      type="number"
-                      min="1"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       value={exercise.targetReps}
                       onChange={(e) => handleExerciseChange(exercise.id, 'targetReps', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Target reps"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50 text-sm"
+                      placeholder="Number of reps"
                       required
                     />
                   </div>
-                  {exercises.length > 1 && (
+                  {exerciseInputs.length > 1 && (
                     <button
                       type="button"
                       onClick={() => handleRemoveExercise(exercise.id)}
-                      className="mt-2 px-3 py-2 text-red-600 hover:text-red-800 text-sm"
+                      className="mt-2 px-3 py-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl text-sm font-medium transition-colors"
                     >
-                      Remove
+                      Delete
                     </button>
                   )}
                 </div>
@@ -179,19 +279,20 @@ export default function CreateChallengePage() {
           </div>
           
           {/* Submit */}
-          <div className="flex gap-3 pt-4 border-t border-gray-200">
-            <Link
-              href="/"
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-center"
+          <div className="flex gap-3 pt-4 border-t border-gray-200/50">
+            <button
+              type="button"
+              onClick={handleCancel}
+              className="flex-1 px-4 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 text-center font-medium transition-all"
             >
-              Cancel
-            </Link>
+              <span className="text-xl">×</span>
+            </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-4 py-3 gradient-green-translucent text-white rounded-xl hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed soft-shadow font-medium transition-all"
             >
-              {isSubmitting ? 'Creating...' : 'Create Challenge'}
+              {isSubmitting ? 'Saving...' : 'Save'}
             </button>
           </div>
         </form>
