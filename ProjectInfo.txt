@@ -1,0 +1,660 @@
+Fitness Challenge Tracker — MVP Spec (README for Coding Agent)
+
+This README is the full build spec for an MVP web app that lets a friend group run weekly fitness challenges with (1) a cardio goal and (2) a strength goal (one or more exercises). Users can log throughout the week, see a leaderboard, and see a recent activity feed. Mobile-first UI; works on desktop.
+
+Key change vs prior draft: the group has an admin, but the admin is not the only person who can create challenges. The admin assigns a “weekly host” (challenge creator) for each week.
+
+1) Product goals
+Primary user goals
+
+See this week’s challenge at a glance.
+
+Log cardio and strength quickly (low friction).
+
+See my progress clearly (not cluttered).
+
+See everyone’s progress + ranking (light competition).
+
+See a recent activity feed (the app feels alive).
+
+Group management goals
+
+Create and manage a group.
+
+Assign who is the weekly host for a given week.
+
+Weekly host creates that week’s challenge.
+
+2) Tech stack (MVP)
+Frontend
+
+React + TypeScript
+
+Next.js (recommended) for routing + deployment
+
+Mobile-first, card-based UI
+
+Backend
+
+Supabase
+
+Postgres database
+
+Supabase Auth
+
+Row Level Security (RLS) for group-scoped access control
+
+Edge Functions are allowed in MVP if needed for “join by invite code” and guarded writes
+
+Out of scope (MVP)
+
+No wearable integrations
+
+No push notifications
+
+No heavy charts/graphs
+
+No extra “flair” features (badges, emojis, etc.)
+
+3) Core concepts and rules
+Groups
+
+Users belong to one or more groups (MVP can assume 1 group per user if you want; schema should still support multiple).
+
+Users must only read/write data for groups they belong to.
+
+Weekly challenge structure
+
+Each week has:
+
+Date range: start_date and end_date (inclusive)
+
+A designated weekly host (a group member chosen by the admin)
+
+The host defines:
+
+Cardio goal: metric (miles or minutes) + numeric target
+
+Strength exercises: 1..N exercises with target reps
+
+Logging rules
+
+Users can create many log entries during the week.
+
+Logs accumulate totals toward the weekly targets.
+
+Users can edit/delete their own logs only.
+
+Progress calculations (must match UI)
+
+Cardio progress: min(cardio_total / cardio_target, 1.0)
+
+Strength per exercise: min(exercise_total / exercise_target, 1.0)
+
+Strength overall: average of exercise progress values (equal weighting)
+
+Total progress: average of cardio progress and strength overall
+
+Leaderboard sorting
+
+Sort descending by total_progress
+
+Tie-breakers:
+
+higher cardio_progress
+
+higher strength_overall
+
+stable sort is acceptable if you do not implement an additional tie-breaker
+
+4) MVP screens & layout requirements
+Global layout requirements
+
+Mobile-first; desktop responsive.
+
+Use cards with generous spacing; avoid dense tables on mobile.
+
+Sticky top bar with prominent “Log” button.
+
+Leaderboard is collapsed by default on mobile (top 3 + “You”), expandable.
+
+Screen A: Home Dashboard (single page)
+
+This page should contain, in order:
+
+Top sticky bar
+
+Left: week label + date range (2 lines max)
+
+Right: Log button
+
+Secondary: “Host: {weekly_host_name}”
+
+Section 1: This Week’s Challenge (summary card)
+
+Cardio: {target} {metric}
+
+Strength: inline list: Pushups 200 · Squats 100 (truncate gracefully on mobile)
+
+Group completion: N / M finished
+
+Section 2: Your Progress (hero card)
+
+Cardio progress bar + text X / target {metric}
+
+Strength overall progress bar
+
+Compact per-exercise lines: Pushups: 120 / 200, etc.
+
+“Your recent logs” list (last 5) with edit/delete actions
+
+Section 3: Leaderboard (collapsed by default)
+
+Default shows: top 3 + current user row (even if not top 3)
+
+Each row: display name, mini progress bar, percent
+
+Expand/collapse to show full list of group members
+
+Section 4: Activity Feed
+
+Show latest 5 feed items, newest first
+
+Each item includes:
+
+user name
+
+what they logged (cardio activity + amount OR strength reps + exercise)
+
+timestamp (absolute ok; relative optional)
+
+Optional: “View all” (not required)
+
+Empty states:
+
+If no active week: show a clean “No challenge for this week yet” message and a CTA appropriate to the user:
+
+If the user is the assigned host: “Create this week’s challenge”
+
+Otherwise: “Waiting for host to create this week’s challenge”
+
+Screen B: Log Workout (modal or page)
+
+Two tabs:
+
+Cardio tab
+
+Activity type dropdown: Run / Walk / Bike / Other
+
+Amount input labeled based on the week metric (miles or minutes)
+
+Date input default today
+
+Optional note
+
+Submit creates a cardio log
+
+Strength tab
+
+Exercise dropdown populated from current week’s exercises
+
+Reps input
+
+Date input default today
+
+Optional note
+
+Submit creates a strength log
+
+Editing/deleting:
+
+Edit/delete is accessible from “Your recent logs” list on Home.
+
+Only the log owner can edit/delete.
+
+Screen C: Create Weekly Challenge (weekly host only)
+
+Only the assigned host for the active week (or next upcoming week) can create the challenge.
+
+Inputs:
+
+Start date / end date
+
+Cardio: metric (miles/minutes) + target number
+
+Strength: dynamic list of exercises (name + target reps), min 1
+
+Rules:
+
+The assigned host can create it only once per week.
+
+Must enforce a single active week per group for the same date range.
+
+Non-host users cannot create/edit that week’s challenge.
+
+Screen D: Group Settings (admin functionality)
+
+Admin can:
+
+Set group name (optional)
+
+View members
+
+Assign weekly host for a week
+
+Minimum viable host assignment:
+
+For the “current week” (or “next week”), admin selects a member as host.
+
+Store host assignment in DB so it drives permissions and UI.
+
+MVP host selection UI can be simple:
+
+Dropdown of members
+
+Pick start/end dates for that week
+
+Assign host
+
+Screen E: Auth & Onboarding (after backend integration)
+
+Users can:
+
+Sign in via Supabase Auth (email OTP/magic link)
+
+Create a group or join via invite code
+
+Set display name on first login
+
+5) Data model (Postgres / Supabase)
+Tables
+profiles
+
+id (uuid pk; auth.users.id)
+
+display_name (text, required)
+
+created_at (timestamptz)
+
+groups
+
+id (uuid pk)
+
+name (text, required)
+
+invite_code (text unique, required)
+
+created_by (uuid fk -> profiles.id)
+
+created_at (timestamptz)
+
+group_memberships
+
+id (uuid pk)
+
+group_id (uuid fk -> groups.id)
+
+user_id (uuid fk -> profiles.id)
+
+role (text: 'admin' | 'member'; default 'member')
+
+unique (group_id, user_id)
+
+created_at (timestamptz)
+
+week_assignments
+
+Defines the week window and who is host.
+
+id (uuid pk)
+
+group_id (uuid fk -> groups.id)
+
+start_date (date)
+
+end_date (date)
+
+host_user_id (uuid fk -> profiles.id)
+
+assigned_by (uuid fk -> profiles.id) // admin who assigned host
+
+created_at (timestamptz)
+
+Constraints:
+
+start_date <= end_date
+
+Prevent overlapping assignments for the same group/date range (via exclusion constraint or app logic).
+
+week_challenges
+
+The actual challenge details (created by the host).
+
+id (uuid pk)
+
+group_id (uuid fk -> groups.id)
+
+week_assignment_id (uuid fk -> week_assignments.id, unique) // one challenge per assignment
+
+created_by (uuid fk -> profiles.id) // should equal host_user_id
+
+cardio_metric (text: 'miles' | 'minutes')
+
+cardio_target (numeric)
+
+created_at (timestamptz)
+
+Constraints:
+
+cardio_target > 0
+
+created_by must equal the assignment host (enforce via RLS or trigger/app logic)
+
+strength_exercises
+
+id (uuid pk)
+
+week_challenge_id (uuid fk -> week_challenges.id)
+
+name (text)
+
+target_reps (int)
+
+sort_order (int)
+
+created_at (timestamptz)
+
+workout_logs
+
+Single table for both cardio and strength logs.
+
+id (uuid pk)
+
+group_id (uuid fk -> groups.id)
+
+week_challenge_id (uuid fk -> week_challenges.id)
+
+user_id (uuid fk -> profiles.id)
+
+logged_at (date)
+
+created_at (timestamptz)
+
+log_type (text: 'cardio' | 'strength')
+
+Cardio fields (nullable if strength):
+
+cardio_activity (text: 'run'|'walk'|'bike'|'other')
+
+cardio_amount (numeric)
+
+Strength fields (nullable if cardio):
+
+exercise_id (uuid fk -> strength_exercises.id)
+
+strength_reps (int)
+
+Other:
+
+note (text, nullable)
+
+Constraints:
+
+Enforce cardio-vs-strength field correctness via check constraints (preferred) or validated at API + tested.
+
+6) Views (recommended)
+
+Create read-only views to keep frontend logic minimal and consistent.
+
+v_active_week (per group)
+
+Returns the active week assignment (today within dates), plus challenge if created.
+
+group_id, start_date, end_date, host name/id
+
+challenge id (nullable), cardio metric/target (nullable until created)
+
+v_week_exercises
+
+Exercises for the active week challenge.
+
+v_user_week_progress
+
+For each user in group for the active week:
+
+cardio_total
+
+per-exercise totals
+
+cardio_progress
+
+strength_overall_progress
+
+total_progress
+
+last_activity_at
+
+v_leaderboard_active_week
+
+Leaderboard rows for active week:
+
+user_id, display_name, cardio_progress, strength_overall_progress, total_progress
+
+v_activity_feed_active_week
+
+Latest logs for active week, ordered by created_at desc.
+
+7) Security (RLS policies)
+Requirements
+
+Users can only see rows for groups they belong to.
+
+Only admins can:
+
+edit group settings
+
+assign a host (week_assignments)
+
+Only the assigned host can:
+
+create the challenge for that assignment (week_challenges + strength_exercises)
+
+All group members can:
+
+read the challenge
+
+log workouts for that active week
+
+Only log owner can edit/delete their logs.
+
+Policies overview:
+
+groups: members can select; creator can insert.
+
+group_memberships: members can select; join flow can insert membership; admin can manage roles (optional in MVP).
+
+week_assignments:
+
+select: group members
+
+insert/update/delete: group admins only
+
+week_challenges:
+
+select: group members
+
+insert: only host of the referenced assignment
+
+update/delete: only host (or admin; choose one—MVP can be host only)
+
+strength_exercises:
+
+select: group members
+
+insert/update/delete: only host for that challenge
+
+workout_logs:
+
+select: group members
+
+insert: group members
+
+update/delete: only where user_id = auth.uid()
+
+Note: Ensure workout_logs.group_id matches the challenge’s group. Enforce via trigger or application write path.
+
+8) Frontend behavior & data
+Required Home data
+
+Active week assignment + challenge (may be null)
+
+Exercises (if challenge exists)
+
+Group members list (names)
+
+My progress + recent logs
+
+Leaderboard (active week)
+
+Activity feed (active week, latest 5)
+
+Required UI states
+
+No auth (during frontend dummy phase): show sample data only.
+
+Authenticated, no group: onboarding create/join.
+
+In group, no active assignment: show message “No week scheduled” + admin CTA to assign host/week.
+
+Active assignment exists, but no challenge: show “Waiting for host” (or host CTA).
+
+Challenge exists: full dashboard and logging enabled.
+
+9) UI requirements (anti-clutter rules)
+
+Mobile:
+
+Vertical stack: challenge → your progress → leaderboard → feed
+
+Leaderboard collapsed by default; expandable
+
+Feed limited to 5 items
+
+No tables on mobile
+
+Desktop:
+
+Two-column at large widths:
+
+Left: challenge + your progress + feed
+
+Right: leaderboard (expanded by default) + group completion
+
+10) Acceptance criteria (MVP done)
+Group & assignments
+
+Admin can create group, invite others.
+
+Admin can assign a weekly host with start/end dates.
+
+All members can view the active assignment and its host.
+
+Challenge creation
+
+Only assigned host can create the challenge details for that assignment.
+
+Everyone can view the challenge once created.
+
+Logging
+
+All members can create cardio and strength logs for the active week challenge.
+
+Logs accumulate totals correctly.
+
+Users can edit/delete only their own logs.
+
+Dashboard
+
+Shows active week summary, your progress, leaderboard (collapsed), feed.
+
+Progress calculations exactly match spec.
+
+Security
+
+RLS prevents cross-group data access.
+
+Only admins can create/modify week assignments.
+
+Only host can create that week’s challenge.
+
+11) Build order (required)
+
+Build frontend first with dummy data and no auth, then integrate Supabase and finally add auth.
+
+Frontend MVP (no backend, no auth)
+
+Implement all screens/components with dummy JSON data:
+
+Home dashboard layout (mobile-first, desktop responsive)
+
+Log modal/page (create/edit/delete logs in local state)
+
+Create Weekly Challenge screen (writes to local state)
+
+Group Settings / Assign Host screen (writes to local state)
+
+Ensure all UI states work using toggles:
+
+No active assignment
+
+Assignment exists, no challenge yet
+
+Challenge exists with exercises
+
+Ensure calculations are correct using dummy data.
+
+Supabase project setup
+
+Create schema migrations (tables + constraints)
+
+Add views for active week, leaderboard, feed, progress
+
+Implement RLS policies
+
+Seed minimal dev data (optional)
+
+Connect frontend to Supabase (still no auth gating yet)
+
+Replace dummy data with real reads from Supabase.
+
+Wire create/update/delete for logs.
+
+Wire host assignment and challenge creation with correct permissions (may temporarily bypass auth only in local dev; final must enforce).
+
+Add Supabase Auth + onboarding
+
+Auth pages/flows
+
+Create/join group by invite code
+
+Ensure RLS works with real user identity
+
+Remove all bypasses; permissions must rely on RLS
+
+12) Deliverables
+
+Repo with:
+
+Frontend app
+
+Supabase migrations (schema + views + RLS)
+
+Environment variables documentation
+
+Local run instructions
+
+A short “How to test MVP” checklist:
+
+Create group → invite user → assign host → host creates challenge → members log → dashboard updates.
+
+If implementing anything not explicitly required above, it must not delay the core MVP: Home dashboard, host assignment, challenge creation by host, logging, and group-scoped security.
