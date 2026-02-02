@@ -1,130 +1,163 @@
 'use client'
 
-import type { UserProgress, StrengthExercise, WorkoutLog, WeekChallenge } from '@/types'
-import Link from 'next/link'
+import type { UserProgress, StrengthExercise, WeekChallenge, WorkoutLog, CardioActivity } from '@/types'
 
 interface ProgressCardProps {
   progress: UserProgress
   challenge: WeekChallenge
   exercises: StrengthExercise[]
-  recentLogs: WorkoutLog[]
-  onEditLog: (logId: string) => void
-  onDeleteLog: (logId: string) => void
+  weekStartDate: string
+  weekEndDate: string
+  logs: WorkoutLog[]
+  userId: string
+}
+
+interface DonutChartProps {
+  progress: number
+  size?: number
+  strokeWidth?: number
+  color?: string
+}
+
+function DonutChart({ progress, size = 80, strokeWidth = 8, color = 'blue' }: DonutChartProps) {
+  // Smaller inner radius = thicker ring
+  // Use a larger strokeWidth relative to size for thicker rings
+  const radius = (size - strokeWidth * 2) / 2
+  const circumference = 2 * Math.PI * radius
+  const offset = circumference - (progress * circumference)
+  
+  const colorClasses = {
+    blue: 'stroke-blue-500 opacity-70',
+    green: 'stroke-green-500 opacity-70',
+  }
+  
+  return (
+    <div className="relative inline-flex items-center justify-center">
+      <svg width={size} height={size} className="transform -rotate-90">
+        {/* Background circle */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="#e5e7eb"
+          strokeWidth={strokeWidth}
+        />
+        {/* Progress circle */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          strokeWidth={strokeWidth}
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          className={colorClasses[color as keyof typeof colorClasses] || colorClasses.blue}
+          style={{ transition: 'stroke-dashoffset 0.5s ease' }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span className="text-base font-semibold text-gray-900">
+          {Math.round(progress * 100)}%
+        </span>
+      </div>
+    </div>
+  )
 }
 
 export default function ProgressCard({
   progress,
   challenge,
   exercises,
-  recentLogs,
-  onEditLog,
-  onDeleteLog,
+  weekStartDate,
+  weekEndDate,
+  logs,
+  userId,
 }: ProgressCardProps) {
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  }
-
-  const formatLogDescription = (log: WorkoutLog) => {
-    if (log.log_type === 'cardio') {
-      const metric = challenge.cardio_metric === 'miles' 
-        ? (log.cardio_amount === 1 ? 'mile' : 'miles')
-        : (log.cardio_amount === 1 ? 'minute' : 'minutes')
-      return `${log.cardio_activity} - ${log.cardio_amount} ${metric}`
-    } else {
-      const exercise = exercises.find(e => e.id === log.exercise_id)
-      return `${exercise?.name || 'Exercise'} - ${log.strength_reps} reps`
-    }
-  }
-
+  const weekLabel = new Date(weekStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  
+  // Calculate days remaining
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const endDate = new Date(weekEndDate)
+  endDate.setHours(23, 59, 59, 999)
+  const daysRemaining = Math.max(0, Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)))
+  
+  // Calculate cardio breakdown
+  const userCardioLogs = logs.filter(log => 
+    log.user_id === userId && 
+    log.log_type === 'cardio' && 
+    log.cardio_activity && 
+    log.cardio_amount
+  )
+  
+  const cardioBreakdown: Record<string, number> = {}
+  userCardioLogs.forEach(log => {
+    const activity = log.cardio_activity!
+    const capitalized = activity.charAt(0).toUpperCase() + activity.slice(1)
+    cardioBreakdown[capitalized] = (cardioBreakdown[capitalized] || 0) + (log.cardio_amount || 0)
+  })
+  
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4">
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">Your Progress</h2>
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 mb-4">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-lg font-semibold text-gray-900">
+          Your Progress (week of {weekLabel})
+        </h2>
+        <span className="text-sm text-gray-600">
+          {daysRemaining} {daysRemaining === 1 ? 'day' : 'days'} left in week
+        </span>
+      </div>
       
-      {/* Cardio Progress */}
-      <div className="mb-4">
-        <div className="flex justify-between items-center mb-1">
-          <span className="text-sm font-medium text-gray-700">Cardio</span>
-          <span className="text-sm text-gray-900">
+      {/* Cardio and Strength side by side */}
+      <div className="grid grid-cols-2 gap-2">
+        {/* Cardio Progress */}
+        <div className="flex flex-col items-center">
+          <div className="text-sm font-medium text-gray-700 mb-1">Cardio</div>
+          <DonutChart
+            progress={progress.cardio_progress}
+            size={200}
+            strokeWidth={28}
+            color="green"
+          />
+          <div className="text-sm text-gray-900 mt-1 text-center mb-2">
             {progress.cardio_total.toFixed(1)} / {challenge.cardio_target} {challenge.cardio_metric}
-          </span>
-        </div>
-        <div className="w-full bg-gray-200 rounded-full h-2.5">
-          <div
-            className="bg-blue-600 h-2.5 rounded-full transition-all"
-            style={{ width: `${Math.min(progress.cardio_progress * 100, 100)}%` }}
-          />
-        </div>
-        <div className="text-xs text-gray-500 mt-1">
-          {Math.round(progress.cardio_progress * 100)}% complete
-        </div>
-      </div>
-
-      {/* Strength Overall Progress */}
-      <div className="mb-4">
-        <div className="flex justify-between items-center mb-1">
-          <span className="text-sm font-medium text-gray-700">Strength Overall</span>
-          <span className="text-sm text-gray-900">
-            {Math.round(progress.strength_overall_progress * 100)}%
-          </span>
-        </div>
-        <div className="w-full bg-gray-200 rounded-full h-2.5">
-          <div
-            className="bg-green-600 h-2.5 rounded-full transition-all"
-            style={{ width: `${Math.min(progress.strength_overall_progress * 100, 100)}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Per-Exercise Progress */}
-      <div className="mb-4 space-y-2">
-        {exercises.map(exercise => {
-          const total = progress.exercise_totals[exercise.id] || 0
-          const progressValue = Math.min(total / exercise.target_reps, 1.0)
-          return (
-            <div key={exercise.id} className="text-sm">
-              <div className="flex justify-between mb-0.5">
-                <span className="text-gray-700">{exercise.name}:</span>
-                <span className="text-gray-900">
-                  {Math.round(total)} / {exercise.target_reps}
-                </span>
+          </div>
+          {/* Cardio Breakdown */}
+          <div className="w-full space-y-0.5 text-center">
+            {Object.entries(cardioBreakdown).map(([activity, amount]) => (
+              <div key={activity} className="text-xs text-gray-700">
+                {activity}: {amount.toFixed(1)} {challenge.cardio_metric === 'miles' ? 'mi' : 'min'}
               </div>
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Recent Logs */}
-      <div className="pt-4 border-t border-gray-100">
-        <h3 className="text-sm font-medium text-gray-700 mb-2">Your recent logs</h3>
-        {recentLogs.length === 0 ? (
-          <p className="text-sm text-gray-500">No logs yet. <Link href="/log" className="text-blue-600 hover:underline">Log your first workout</Link></p>
-        ) : (
-          <ul className="space-y-2">
-            {recentLogs.map(log => (
-              <li key={log.id} className="flex items-center justify-between text-sm">
-                <div className="flex-1 min-w-0">
-                  <span className="text-gray-900">{formatLogDescription(log)}</span>
-                  <span className="text-gray-500 ml-2">{formatDate(log.logged_at)}</span>
-                </div>
-                <div className="flex gap-2 ml-2">
-                  <button
-                    onClick={() => onEditLog(log.id)}
-                    className="text-blue-600 hover:text-blue-800 text-xs"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => onDeleteLog(log.id)}
-                    className="text-red-600 hover:text-red-800 text-xs"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </li>
             ))}
-          </ul>
-        )}
+          </div>
+        </div>
+
+        {/* Strength Overall Progress */}
+        <div className="flex flex-col items-center">
+          <div className="text-sm font-medium text-gray-700 mb-1">Strength Overall</div>
+          <DonutChart
+            progress={progress.strength_overall_progress}
+            size={200}
+            strokeWidth={28}
+            color="blue"
+          />
+          <div className="text-sm text-gray-900 mt-1 text-center mb-2">
+            {Math.round(progress.strength_overall_progress * 100)}% complete
+          </div>
+          {/* Exercise List */}
+          <div className="w-full space-y-0.5 text-center">
+            {exercises.map(exercise => {
+              const total = progress.exercise_totals[exercise.id] || 0
+              return (
+                <div key={exercise.id} className="text-xs text-gray-700">
+                  {exercise.name}: {Math.round(total)} / {exercise.target_reps}
+                </div>
+              )
+            })}
+          </div>
+        </div>
       </div>
     </div>
   )
