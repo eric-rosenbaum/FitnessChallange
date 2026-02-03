@@ -3,7 +3,7 @@ import './globals.css'
 import { AppProvider } from '@/context/AppContext'
 
 export const metadata: Metadata = {
-  title: 'Fitness Challenge Tracker',
+  title: 'FriendsFitnessChallenge',
   description: 'Weekly fitness challenges for your group',
 }
 

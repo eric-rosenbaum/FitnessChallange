@@ -182,7 +182,7 @@ function EditLogsPageContent() {
                           />
                           <span className="text-sm text-gray-600">
                             {log.log_type === 'cardio' 
-                              ? (challenge.cardio_metric === 'miles' ? 'miles' : 'minutes')
+                              ? (activeWeek.challenge.cardio_metric === 'miles' ? 'miles' : 'minutes')
                               : 'reps'
                             }
                           </span>
@@ -222,7 +222,7 @@ function EditLogsPageContent() {
                           </div>
                           <div className="text-sm font-medium text-gray-600">
                             {log.log_type === 'cardio' 
-                              ? `${log.cardio_amount?.toFixed(1)} ${challenge.cardio_metric === 'miles' ? 'mi' : 'min'}`
+                              ? `${log.cardio_amount?.toFixed(1)} ${activeWeek.challenge.cardio_metric === 'miles' ? 'mi' : 'min'}`
                               : `${log.strength_reps} reps`
                             }
                           </div>
