@@ -64,13 +64,13 @@ export default function ProfilePage() {
     <div className="min-h-screen">
       <div className="max-w-2xl mx-auto px-4 py-6">
         <div className="mb-6">
-          <Link href="/" className="text-emerald-600 hover:text-emerald-700 hover:underline text-sm font-medium">← Back to home</Link>
+          <Link href="/" className="text-[#8B4513] hover:text-[#6B4423] hover:underline text-sm font-medium">← Back to home</Link>
           <h1 className="text-2xl font-bold text-gray-800 mt-2 tracking-tight">Profile</h1>
         </div>
         
         <div className="space-y-6">
           {/* Display Name */}
-          <div className="glass-card rounded-2xl soft-shadow-lg p-6 border border-white/50">
+          <div className="glass-card rounded-2xl soft-shadow-lg p-6 border border-red-100/30">
             <h2 className="text-xl font-semibold text-gray-800 mb-4 tracking-tight">Display Name</h2>
             <div className="space-y-4">
               <div>
@@ -81,7 +81,7 @@ export default function ProfilePage() {
                   type="text"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
                   placeholder="Enter your display name"
                 />
               </div>
@@ -89,7 +89,7 @@ export default function ProfilePage() {
               <button
                 onClick={handleSaveName}
                 disabled={isSaving}
-                className="w-full px-4 py-3 gradient-green-translucent text-white rounded-xl hover:opacity-90 transition-all soft-shadow font-medium disabled:opacity-50"
+                className="w-full px-4 py-3 bg-[#8B4513] text-white rounded-xl hover:opacity-90 transition-all soft-shadow font-medium disabled:opacity-50"
               >
                 {isSaving ? 'Saving...' : 'Save Changes'}
               </button>
@@ -97,7 +97,7 @@ export default function ProfilePage() {
           </div>
           
           {/* Password Reset */}
-          <div className="glass-card rounded-2xl soft-shadow-lg p-6 border border-white/50">
+          <div className="glass-card rounded-2xl soft-shadow-lg p-6 border border-red-100/30">
             <h2 className="text-xl font-semibold text-gray-800 mb-4 tracking-tight">Password</h2>
             <div className="space-y-4">
               <p className="text-sm text-gray-600">
@@ -105,7 +105,7 @@ export default function ProfilePage() {
               </p>
               <button
                 onClick={handleResetPassword}
-                className="w-full px-4 py-3 border-2 border-emerald-500 text-emerald-600 rounded-xl hover:bg-emerald-50 transition-all font-medium"
+                className="w-full px-4 py-3 border-2 border-[#8B4513] text-[#8B4513] rounded-xl hover:bg-red-50 transition-all font-medium"
               >
                 Reset Password
               </button>

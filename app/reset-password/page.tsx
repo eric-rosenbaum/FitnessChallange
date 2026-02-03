@@ -81,7 +81,7 @@ function ResetPasswordPageContent() {
   if (isPasswordReset) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="glass-card rounded-2xl soft-shadow-lg p-8 w-full max-w-md border border-white/50">
+        <div className="glass-card rounded-2xl soft-shadow-lg p-8 w-full max-w-md border border-red-100/30">
           <h1 className="text-2xl font-bold text-gray-800 mb-6 tracking-tight text-center">
             Reset Password
           </h1>
@@ -95,7 +95,7 @@ function ResetPasswordPageContent() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
+                className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
                 placeholder="Enter new password"
                 required
                 minLength={6}
@@ -110,7 +110,7 @@ function ResetPasswordPageContent() {
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
+                className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
                 placeholder="Confirm new password"
                 required
                 minLength={6}
@@ -120,7 +120,7 @@ function ResetPasswordPageContent() {
             {message && (
               <div className={`text-sm p-3 rounded-xl ${
                 message.includes('successfully')
-                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                  ? 'bg-red-50 text-[#6B4423] border border-red-200' 
                   : 'bg-red-50 text-red-700 border border-red-200'
               }`}>
                 {message}
@@ -130,7 +130,7 @@ function ResetPasswordPageContent() {
             <button
               type="submit"
               disabled={isResetting}
-              className="w-full px-4 py-3 gradient-green-translucent text-white rounded-xl hover:opacity-90 disabled:opacity-50 soft-shadow font-medium transition-all"
+              className="w-full px-4 py-3 bg-[#8B4513] text-white rounded-xl hover:opacity-90 disabled:opacity-50 soft-shadow font-medium transition-all"
             >
               {isResetting ? 'Updating...' : 'Update Password'}
             </button>
@@ -142,7 +142,7 @@ function ResetPasswordPageContent() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="glass-card rounded-2xl soft-shadow-lg p-8 w-full max-w-md border border-white/50">
+      <div className="glass-card rounded-2xl soft-shadow-lg p-8 w-full max-w-md border border-red-100/30">
         <h1 className="text-2xl font-bold text-gray-800 mb-6 tracking-tight text-center">
           Reset Password
         </h1>
@@ -156,7 +156,7 @@ function ResetPasswordPageContent() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
+              className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
               placeholder="your@email.com"
               required
             />
@@ -165,7 +165,7 @@ function ResetPasswordPageContent() {
           {message && (
             <div className={`text-sm p-3 rounded-xl ${
               message.includes('sent')
-                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                ? 'bg-red-50 text-[#6B4423] border border-red-200' 
                 : 'bg-red-50 text-red-700 border border-red-200'
             }`}>
               {message}
@@ -175,7 +175,7 @@ function ResetPasswordPageContent() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full px-4 py-3 gradient-green-translucent text-white rounded-xl hover:opacity-90 disabled:opacity-50 soft-shadow font-medium transition-all"
+            className="w-full px-4 py-3 bg-[#8B4513] text-white rounded-xl hover:opacity-90 disabled:opacity-50 soft-shadow font-medium transition-all"
           >
             {isLoading ? 'Sending...' : 'Send Reset Link'}
           </button>
@@ -184,7 +184,7 @@ function ResetPasswordPageContent() {
         <div className="mt-4 text-center">
           <Link
             href="/login"
-            className="text-sm text-emerald-600 hover:text-emerald-700 hover:underline"
+            className="text-sm text-[#8B4513] hover:text-[#6B4423] hover:underline"
           >
             Back to Sign In
           </Link>

@@ -87,7 +87,7 @@ function LoginPageContent() {
   
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="glass-card rounded-2xl soft-shadow-lg p-8 w-full max-w-md border border-white/50">
+      <div className="glass-card rounded-2xl soft-shadow-lg p-8 w-full max-w-md border border-red-100/30">
         <h1 className="text-2xl font-bold text-gray-800 mb-6 tracking-tight text-center">
           FriendsFitnessChallenge
         </h1>
@@ -102,7 +102,7 @@ function LoginPageContent() {
             }}
             className={`flex-1 px-4 py-2 rounded-xl font-medium transition-all ${
               !isSignUp
-                ? 'gradient-green-translucent text-white soft-shadow'
+                ? 'bg-[#8B4513] text-white soft-shadow'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
@@ -116,7 +116,7 @@ function LoginPageContent() {
             }}
             className={`flex-1 px-4 py-2 rounded-xl font-medium transition-all ${
               isSignUp
-                ? 'gradient-green-translucent text-white soft-shadow'
+                ? 'bg-[#8B4513] text-white soft-shadow'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
@@ -133,7 +133,7 @@ function LoginPageContent() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
+              className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
               placeholder="your@email.com"
               required
             />
@@ -147,7 +147,7 @@ function LoginPageContent() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
+              className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
               placeholder="Enter your password"
               required
               minLength={6}
@@ -157,7 +157,7 @@ function LoginPageContent() {
           {message && (
             <div className={`text-sm p-3 rounded-xl ${
               message.includes('Account created') || message.includes('check your email')
-                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                ? 'bg-red-50 text-[#6B4423] border border-red-200' 
                 : 'bg-red-50 text-red-700 border border-red-200'
             }`}>
               {message}
@@ -167,7 +167,7 @@ function LoginPageContent() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full px-4 py-3 gradient-green-translucent text-white rounded-xl hover:opacity-90 disabled:opacity-50 soft-shadow font-medium transition-all"
+            className="w-full px-4 py-3 bg-[#8B4513] text-white rounded-xl hover:opacity-90 disabled:opacity-50 soft-shadow font-medium transition-all"
           >
             {isLoading 
               ? (isSignUp ? 'Creating Account...' : 'Signing In...') 
@@ -180,7 +180,7 @@ function LoginPageContent() {
           <div className="mt-4 text-center">
             <Link
               href="/reset-password"
-              className="text-sm text-emerald-600 hover:text-emerald-700 hover:underline"
+              className="text-sm text-[#8B4513] hover:text-[#6B4423] hover:underline"
             >
               Forgot your password?
             </Link>

@@ -284,9 +284,9 @@ export default function SettingsPage() {
   if (!group) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="glass-card rounded-2xl soft-shadow-lg p-6 text-center max-w-md border border-white/50">
+        <div className="glass-card rounded-2xl soft-shadow-lg p-6 text-center max-w-md border border-red-100/30">
           <p className="text-gray-700 mb-4 font-medium">No group found</p>
-          <Link href="/" className="text-emerald-600 hover:text-emerald-700 hover:underline font-medium">Back to home</Link>
+          <Link href="/" className="text-[#8B4513] hover:text-[#6B4423] hover:underline font-medium">Back to home</Link>
         </div>
       </div>
     )
@@ -296,26 +296,26 @@ export default function SettingsPage() {
     <div className="min-h-screen">
       <div className="max-w-2xl mx-auto px-4 py-6">
         <div className="mb-6">
-          <Link href="/" className="text-emerald-600 hover:text-emerald-700 hover:underline text-sm font-medium">← Back to home</Link>
+          <Link href="/" className="text-[#8B4513] hover:text-[#6B4423] hover:underline text-sm font-medium">← Back to home</Link>
           <h1 className="text-2xl font-bold text-gray-800 mt-2 tracking-tight">Group Settings</h1>
         </div>
         
         <div className="space-y-6">
           {/* Group Name */}
-          <div className="glass-card rounded-2xl soft-shadow-lg p-6 border border-white/50">
+          <div className="glass-card rounded-2xl soft-shadow-lg p-6 border border-red-100/30">
             <h2 className="text-xl font-semibold text-gray-800 mb-4 tracking-tight">Group Name</h2>
             <div className="flex gap-3">
               <input
                 type="text"
                 value={groupName}
                 onChange={(e) => setGroupName(e.target.value)}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
                 placeholder="Group name"
               />
               <button
                 onClick={handleSaveGroupName}
                 disabled={isSaving}
-                className="px-4 py-2 gradient-green-translucent text-white rounded-xl hover:opacity-90 disabled:opacity-50 soft-shadow font-medium transition-all"
+                className="px-4 py-2 bg-[#8B4513] text-white rounded-xl hover:opacity-90 disabled:opacity-50 soft-shadow font-medium transition-all"
               >
                 {isSaving ? 'Saving...' : 'Save'}
               </button>
@@ -323,7 +323,7 @@ export default function SettingsPage() {
           </div>
           
           {/* Members */}
-          <div className="glass-card rounded-2xl soft-shadow-lg p-6 border border-white/50">
+          <div className="glass-card rounded-2xl soft-shadow-lg p-6 border border-red-100/30">
             <h2 className="text-xl font-semibold text-gray-800 mb-4 tracking-tight">Members</h2>
             <div className="space-y-2 mb-4">
               {membersWithProfiles.map((member) => (
@@ -335,7 +335,7 @@ export default function SettingsPage() {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs px-2 py-1 bg-emerald-50 text-emerald-700 rounded-lg font-medium border border-emerald-100/50">
+                    <span className="text-xs px-2 py-1 bg-red-50 text-[#8B4513] rounded-lg font-medium border border-red-200/50">
                       {member.role}
                     </span>
                     {memberships.length > 1 && (
@@ -366,8 +366,8 @@ export default function SettingsPage() {
               <p className="text-sm text-gray-600 mb-3">
                 Share this invite code with others to let them join your group:
               </p>
-              <div className="p-4 bg-emerald-50/50 border border-emerald-200/50 rounded-xl">
-                <p className="text-center font-mono text-2xl font-bold text-emerald-700 tracking-wider">
+              <div className="p-4 bg-red-50/50 border border-red-200/50 rounded-xl">
+                <p className="text-center font-mono text-2xl font-bold text-[#8B4513] tracking-wider">
                   {group.invite_code}
                 </p>
               </div>
@@ -379,7 +379,7 @@ export default function SettingsPage() {
           
           {/* Current Week Assignment (Admin Only) */}
           {hasActiveWeek && activeWeek?.week_assignment && (
-            <div className="glass-card rounded-2xl soft-shadow-lg p-6 border border-white/50">
+            <div className="glass-card rounded-2xl soft-shadow-lg p-6 border border-red-100/30">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-semibold text-gray-800 tracking-tight">Current Week Assignment</h2>
                 {isAdmin && (
@@ -388,7 +388,7 @@ export default function SettingsPage() {
                       setEditingCurrentHost(!editingCurrentHost)
                       setNewCurrentHost(activeWeek.week_assignment.host_user_id)
                     }}
-                    className="text-sm text-emerald-600 hover:text-emerald-700 hover:underline font-medium"
+                    className="text-sm text-[#8B4513] hover:text-[#6B4423] hover:underline font-medium"
                   >
                     {editingCurrentHost ? 'Cancel' : 'Change Host'}
                   </button>
@@ -404,7 +404,7 @@ export default function SettingsPage() {
                     <span className="font-medium">Week:</span> {new Date(activeWeek.week_assignment.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(activeWeek.week_assignment.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </p>
                   {activeWeek.challenge ? (
-                    <p className="text-emerald-600 font-medium">
+                    <p className="text-[#8B4513] font-medium">
                       ✓ Challenge has been created
                     </p>
                   ) : (
@@ -422,7 +422,7 @@ export default function SettingsPage() {
                     <select
                       value={newCurrentHost}
                       onChange={(e) => setNewCurrentHost(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
                       required
                     >
                       <option value="">Select a member</option>
@@ -443,7 +443,7 @@ export default function SettingsPage() {
                     <button
                       onClick={handleUpdateCurrentHost}
                       disabled={isUpdatingHost || !newCurrentHost}
-                      className="flex-1 px-4 py-3 gradient-green-translucent text-white rounded-xl hover:opacity-90 disabled:opacity-50 soft-shadow font-medium transition-all"
+                      className="flex-1 px-4 py-3 bg-[#8B4513] text-white rounded-xl hover:opacity-90 disabled:opacity-50 soft-shadow font-medium transition-all"
                     >
                       {isUpdatingHost ? 'Updating...' : 'Update Host'}
                     </button>
@@ -455,7 +455,7 @@ export default function SettingsPage() {
           
           {/* Upcoming Assignments (Admin Only) */}
           {isAdmin && (
-            <div className="glass-card rounded-2xl soft-shadow-lg p-6 border border-white/50">
+            <div className="glass-card rounded-2xl soft-shadow-lg p-6 border border-red-100/30">
               <h2 className="text-xl font-semibold text-gray-800 mb-4 tracking-tight">Upcoming Assignments</h2>
               
               {/* List of upcoming assignments */}
@@ -499,7 +499,7 @@ export default function SettingsPage() {
                     <select
                       value={newAssignmentHost}
                       onChange={(e) => setNewAssignmentHost(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
                       required
                     >
                       <option value="">Select a member</option>
@@ -519,7 +519,7 @@ export default function SettingsPage() {
                         type="date"
                         value={newAssignmentStartDate}
                         onChange={(e) => setNewAssignmentStartDate(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
                         required
                       />
                     </div>
@@ -531,7 +531,7 @@ export default function SettingsPage() {
                         type="date"
                         value={newAssignmentEndDate}
                         onChange={(e) => setNewAssignmentEndDate(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
                         required
                       />
                     </div>
@@ -539,7 +539,7 @@ export default function SettingsPage() {
                   <button
                     type="submit"
                     disabled={isAddingAssignment}
-                    className="w-full px-4 py-3 gradient-green-translucent text-white rounded-xl hover:opacity-90 disabled:opacity-50 soft-shadow font-medium transition-all"
+                    className="w-full px-4 py-3 bg-[#8B4513] text-white rounded-xl hover:opacity-90 disabled:opacity-50 soft-shadow font-medium transition-all"
                   >
                     {isAddingAssignment ? 'Adding...' : 'Add Assignment'}
                   </button>

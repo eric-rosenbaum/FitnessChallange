@@ -12,7 +12,7 @@ interface EmptyStateProps {
 export default function EmptyState({ weekAssignment, isHost, isAdmin }: EmptyStateProps) {
   if (!weekAssignment) {
     return (
-      <div className="glass-card rounded-2xl soft-shadow-lg p-8 text-center border border-white/50">
+      <div className="glass-card rounded-2xl soft-shadow-lg p-8 text-center border border-red-100/30">
         <p className="text-gray-700 mb-4 font-medium">No challenge for this week yet</p>
         {isAdmin ? (
           <Link
@@ -29,7 +29,7 @@ export default function EmptyState({ weekAssignment, isHost, isAdmin }: EmptySta
   }
 
   return (
-    <div className="glass-card rounded-2xl soft-shadow-lg p-8 text-center border border-white/50">
+    <div className="glass-card rounded-2xl soft-shadow-lg p-8 text-center border border-red-100/30">
       <p className="text-gray-700 mb-4 font-medium">Waiting for host to create this week&apos;s challenge</p>
       {isHost ? (
         <Link

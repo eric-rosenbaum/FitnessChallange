@@ -107,7 +107,7 @@ function EditLogsPageContent() {
       <div className="min-h-screen">
         <StickyTopBar />
         <div className="flex items-center justify-center p-4 min-h-[calc(100vh-80px)]">
-          <div className="glass-card rounded-2xl soft-shadow-lg p-6 text-center max-w-md border border-white/50">
+          <div className="glass-card rounded-2xl soft-shadow-lg p-6 text-center max-w-md border border-red-100/30">
             <p className="text-gray-700 mb-4 font-medium">Loading...</p>
           </div>
         </div>
@@ -120,9 +120,9 @@ function EditLogsPageContent() {
       <div className="min-h-screen">
         <StickyTopBar />
         <div className="flex items-center justify-center p-4 min-h-[calc(100vh-80px)]">
-          <div className="glass-card rounded-2xl soft-shadow-lg p-6 text-center max-w-md border border-white/50">
+          <div className="glass-card rounded-2xl soft-shadow-lg p-6 text-center max-w-md border border-red-100/30">
             <p className="text-gray-700 mb-4 font-medium">No active challenge for this week</p>
-            <Link href="/" className="text-emerald-600 hover:text-emerald-700 hover:underline font-medium">Back to home</Link>
+            <Link href="/" className="text-[#8B4513] hover:text-[#6B4423] hover:underline font-medium">Back to home</Link>
           </div>
         </div>
       </div>
@@ -136,23 +136,23 @@ function EditLogsPageContent() {
       />
       <div className="max-w-4xl mx-auto px-4 py-6">
         <div className="mb-6">
-          <Link href="/" className="text-emerald-600 hover:text-emerald-700 hover:underline text-sm font-medium">← Back to home</Link>
+          <Link href="/" className="text-[#8B4513] hover:text-[#6B4423] hover:underline text-sm font-medium">← Back to home</Link>
           <h1 className="text-2xl font-bold text-gray-800 mt-2 tracking-tight">Edit Your Logs</h1>
           <p className="text-sm text-gray-600 mt-1">Manage your workout logs for this week</p>
         </div>
 
         {userLogs.length === 0 ? (
-          <div className="glass-card rounded-2xl soft-shadow-lg p-8 text-center border border-white/50">
+          <div className="glass-card rounded-2xl soft-shadow-lg p-8 text-center border border-red-100/30">
             <p className="text-gray-700 mb-4 font-medium">You haven't logged any workouts yet</p>
             <Link
               href="/log"
-              className="inline-block px-6 py-3 gradient-green-translucent text-white rounded-xl hover:opacity-90 transition-all soft-shadow font-medium"
+              className="inline-block px-6 py-3 bg-[#8B4513] text-white rounded-xl hover:opacity-90 transition-all soft-shadow font-medium"
             >
               Log a Workout
             </Link>
           </div>
         ) : (
-          <div className="glass-card rounded-2xl soft-shadow-lg border border-white/50 overflow-hidden">
+          <div className="glass-card rounded-2xl soft-shadow-lg border border-red-100/30 overflow-hidden">
             <div className="divide-y divide-gray-200/50">
               {userLogs.map((log) => (
                 <div key={log.id} className="p-4 hover:bg-white/30 transition-colors">
@@ -177,7 +177,7 @@ function EditLogsPageContent() {
                             min="0"
                             value={editAmount}
                             onChange={(e) => setEditAmount(e.target.value)}
-                            className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50 text-sm w-24"
+                            className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50 text-sm w-24"
                             placeholder={log.log_type === 'cardio' ? 'Amount' : 'Reps'}
                           />
                           <span className="text-sm text-gray-600">
@@ -192,7 +192,7 @@ function EditLogsPageContent() {
                         <button
                           onClick={() => handleSaveEdit(log)}
                           disabled={isSaving || !editAmount}
-                          className="px-3 py-1.5 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                          className="px-3 py-1.5 bg-[#8B4513] text-white text-sm rounded-lg hover:bg-[#6B4423] disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                         >
                           {isSaving ? 'Saving...' : 'Save'}
                         </button>
@@ -239,7 +239,7 @@ function EditLogsPageContent() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleStartEdit(log)}
-                          className="px-3 py-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50/50 text-sm rounded-lg font-medium transition-colors"
+                          className="px-3 py-1.5 text-[#8B4513] hover:text-[#6B4423] hover:bg-red-50/50 text-sm rounded-lg font-medium transition-colors"
                         >
                           Edit
                         </button>

@@ -41,7 +41,7 @@ export default function ActivityFeed({ feedItems, challenge }: ActivityFeedProps
   }
 
   return (
-    <div className="glass-card rounded-2xl soft-shadow-lg p-5 mb-4 border border-white/50">
+    <div className="glass-card rounded-2xl soft-shadow-lg p-5 mb-4 border border-red-100/30">
       <h2 className="text-xl font-semibold text-gray-800 tracking-tight mb-4">Activity Feed</h2>
       {feedItems.length === 0 ? (
         <p className="text-sm text-gray-500">No activity yet.</p>

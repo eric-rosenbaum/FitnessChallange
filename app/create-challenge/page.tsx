@@ -64,9 +64,9 @@ export default function CreateChallengePage() {
   if (!activeWeek) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="glass-card rounded-2xl soft-shadow-lg p-6 text-center max-w-md border border-white/50">
+        <div className="glass-card rounded-2xl soft-shadow-lg p-6 text-center max-w-md border border-red-100/30">
           <p className="text-gray-700 mb-4 font-medium">No active week assignment found</p>
-          <Link href="/" className="text-emerald-600 hover:text-emerald-700 hover:underline font-medium">Back to home</Link>
+          <Link href="/" className="text-[#8B4513] hover:text-[#6B4423] hover:underline font-medium">Back to home</Link>
         </div>
       </div>
     )
@@ -77,9 +77,9 @@ export default function CreateChallengePage() {
   if (!isHost) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="glass-card rounded-2xl soft-shadow-lg p-6 text-center max-w-md border border-white/50">
+        <div className="glass-card rounded-2xl soft-shadow-lg p-6 text-center max-w-md border border-red-100/30">
           <p className="text-gray-700 mb-4 font-medium">Only the weekly host can create challenges</p>
-          <Link href="/" className="text-emerald-600 hover:text-emerald-700 hover:underline font-medium">Back to home</Link>
+          <Link href="/" className="text-[#8B4513] hover:text-[#6B4423] hover:underline font-medium">Back to home</Link>
         </div>
       </div>
     )
@@ -180,7 +180,7 @@ export default function CreateChallengePage() {
         <div className="mb-6">
           <button
             onClick={handleCancel}
-            className="text-emerald-600 hover:text-emerald-700 hover:underline text-sm font-medium"
+            className="text-[#8B4513] hover:text-[#6B4423] hover:underline text-sm font-medium"
           >
             ← Back to home
           </button>
@@ -192,7 +192,7 @@ export default function CreateChallengePage() {
           </p>
         </div>
         
-        <form onSubmit={handleSubmit} className="glass-card rounded-2xl soft-shadow-lg p-6 border border-white/50 space-y-6">
+        <form onSubmit={handleSubmit} className="glass-card rounded-2xl soft-shadow-lg p-6 border border-red-100/30 space-y-6">
           {/* Cardio Section */}
           <div>
             <h2 className="text-xl font-semibold text-gray-800 mb-4 tracking-tight">Cardio Goal</h2>
@@ -204,7 +204,7 @@ export default function CreateChallengePage() {
                 <select
                   value={cardioMetric}
                   onChange={(e) => setCardioMetric(e.target.value as CardioMetric)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
                 >
                   <option value="miles">Distance (Miles)</option>
                   <option value="minutes">Time (Hours/Minutes)</option>
@@ -220,7 +220,7 @@ export default function CreateChallengePage() {
                   min="0.1"
                   value={cardioTarget}
                   onChange={(e) => setCardioTarget(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
                   placeholder={cardioMetric === 'miles' ? 'e.g., 20' : 'e.g., 300'}
                   required
                 />
@@ -235,7 +235,7 @@ export default function CreateChallengePage() {
               <button
                 type="button"
                 onClick={handleAddExercise}
-                className="text-sm font-medium text-emerald-600 hover:text-emerald-700 px-3 py-1 rounded-lg hover:bg-emerald-50 transition-colors"
+                className="text-sm font-medium text-[#8B4513] hover:text-[#6B4423] px-3 py-1 rounded-lg hover:bg-red-50 transition-colors"
               >
                 + Add Exercise
               </button>
@@ -249,7 +249,7 @@ export default function CreateChallengePage() {
                       value={exercise.name}
                       onChange={(e) => handleExerciseChange(exercise.id, 'name', e.target.value)}
                       maxLength={50}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50 text-sm"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50 text-sm"
                       placeholder="Exercise name (e.g., Pushups)"
                       required
                     />
@@ -259,7 +259,7 @@ export default function CreateChallengePage() {
                       pattern="[0-9]*"
                       value={exercise.targetReps}
                       onChange={(e) => handleExerciseChange(exercise.id, 'targetReps', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50 text-sm"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50 text-sm"
                       placeholder="Number of reps"
                       required
                     />
@@ -290,7 +290,7 @@ export default function CreateChallengePage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 px-4 py-3 gradient-green-translucent text-white rounded-xl hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed soft-shadow font-medium transition-all"
+              className="flex-1 px-4 py-3 bg-[#8B4513] text-white rounded-xl hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed soft-shadow font-medium transition-all"
             >
               {isSubmitting ? 'Saving...' : 'Save'}
             </button>

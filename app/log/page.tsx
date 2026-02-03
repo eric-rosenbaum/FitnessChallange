@@ -121,7 +121,7 @@ function LogPageContent() {
   if (isLoadingWeek || groupLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="glass-card rounded-2xl soft-shadow-lg p-6 text-center max-w-md border border-white/50">
+        <div className="glass-card rounded-2xl soft-shadow-lg p-6 text-center max-w-md border border-red-100/30">
           <p className="text-gray-700 mb-4 font-medium">Loading...</p>
         </div>
       </div>
@@ -132,9 +132,9 @@ function LogPageContent() {
   if (!activeWeek?.challenge) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="glass-card rounded-2xl soft-shadow-lg p-6 text-center max-w-md border border-white/50">
+        <div className="glass-card rounded-2xl soft-shadow-lg p-6 text-center max-w-md border border-red-100/30">
           <p className="text-gray-700 mb-4 font-medium">No active challenge for this week</p>
-          <Link href="/" className="text-emerald-600 hover:text-emerald-700 hover:underline font-medium">Back to home</Link>
+          <Link href="/" className="text-[#8B4513] hover:text-[#6B4423] hover:underline font-medium">Back to home</Link>
         </div>
       </div>
     )
@@ -147,20 +147,20 @@ function LogPageContent() {
     <div className="min-h-screen">
       <div className="max-w-2xl mx-auto px-3 sm:px-4 py-6">
         <div className="mb-6">
-          <Link href="/" className="text-emerald-600 hover:text-emerald-700 hover:underline text-sm font-medium">← Back to home</Link>
+          <Link href="/" className="text-[#8B4513] hover:text-[#6B4423] hover:underline text-sm font-medium">← Back to home</Link>
           <h1 className="text-2xl font-bold text-gray-800 mt-2 tracking-tight">
             {editingLog ? 'Edit Workout' : 'Log Workout'}
           </h1>
         </div>
         
-        <div className="glass-card rounded-2xl soft-shadow-lg border border-white/50 overflow-hidden">
+        <div className="glass-card rounded-2xl soft-shadow-lg border border-red-100/30 overflow-hidden">
           {/* Tabs */}
           <div className="flex border-b border-gray-200/50">
             <button
               onClick={() => setActiveTab('cardio')}
               className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
                 activeTab === 'cardio'
-                  ? 'text-emerald-600 border-b-2 border-emerald-600'
+                  ? 'text-[#8B4513] border-b-2 border-[#8B4513]'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -170,7 +170,7 @@ function LogPageContent() {
               onClick={() => setActiveTab('strength')}
               className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
                 activeTab === 'strength'
-                  ? 'text-emerald-600 border-b-2 border-emerald-600'
+                  ? 'text-[#8B4513] border-b-2 border-[#8B4513]'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -189,7 +189,7 @@ function LogPageContent() {
                   <select
                     value={cardioActivity}
                     onChange={(e) => setCardioActivity(e.target.value as CardioActivity)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50 text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50 text-sm"
                     style={{ height: '2.5rem', lineHeight: '1.5rem' }}
                     required
                   >
@@ -209,7 +209,7 @@ function LogPageContent() {
                     min="0"
                     value={cardioAmount}
                     onChange={(e) => setCardioAmount(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50 text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50 text-sm"
                     style={{ height: '2.5rem', lineHeight: '1.5rem' }}
                     required
                   />
@@ -224,7 +224,7 @@ function LogPageContent() {
                   <select
                     value={exerciseId}
                     onChange={(e) => setExerciseId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50 text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50 text-sm"
                     style={{ height: '2.5rem', lineHeight: '1.5rem' }}
                     required
                   >
@@ -245,7 +245,7 @@ function LogPageContent() {
                     min="1"
                     value={strengthReps}
                     onChange={(e) => setStrengthReps(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50 text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50 text-sm"
                     style={{ height: '2.5rem', lineHeight: '1.5rem' }}
                     required
                   />
@@ -261,7 +261,7 @@ function LogPageContent() {
                 type="date"
                 value={loggedDate}
                 onChange={(e) => setLoggedDate(e.target.value)}
-                className="w-full min-w-0 px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50 text-sm"
+                className="w-full min-w-0 px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50 text-sm"
                 style={{ 
                   fontSize: '14px',
                   lineHeight: '1.5rem',
@@ -289,7 +289,7 @@ function LogPageContent() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="flex-1 px-4 py-3 gradient-green-translucent text-white rounded-xl hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed soft-shadow font-medium transition-all"
+                className="flex-1 px-4 py-3 bg-[#8B4513] text-white rounded-xl hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed soft-shadow font-medium transition-all"
               >
                 {isSubmitting ? 'Saving...' : editingLog ? 'Update' : 'Log Workout'}
               </button>

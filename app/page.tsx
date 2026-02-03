@@ -209,19 +209,19 @@ function HomePageContent() {
       <div className="min-h-screen">
         <StickyTopBar isAdmin={false} />
         <div className="max-w-4xl mx-auto px-4 py-6">
-          <div className="glass-card rounded-2xl soft-shadow-lg p-8 text-center border border-white/50">
+          <div className="glass-card rounded-2xl soft-shadow-lg p-8 text-center border border-red-100/30">
             <h2 className="text-xl font-semibold text-gray-800 mb-4">Welcome!</h2>
             <p className="text-gray-600 mb-6">Get started by creating or joining a group</p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
                 href="/create-group"
-                className="px-6 py-3 gradient-green-translucent text-white rounded-xl hover:opacity-90 transition-all soft-shadow font-medium"
+                className="px-6 py-3 bg-[#8B4513] text-white rounded-xl hover:opacity-90 transition-all soft-shadow font-medium"
               >
                 Create Group
               </Link>
               <Link
                 href="/join"
-                className="px-6 py-3 border-2 border-emerald-500 text-emerald-600 rounded-xl hover:bg-emerald-50 transition-all font-medium"
+                className="px-6 py-3 border-2 border-[#8B4513] text-[#8B4513] rounded-xl hover:bg-red-50 transition-all font-medium"
               >
                 Join Group
               </Link>
@@ -291,7 +291,7 @@ function HomePageContent() {
               />
               <Link
                 href="/log"
-                className="block w-full px-4 py-3 gradient-green-translucent text-white text-center font-medium rounded-xl soft-shadow hover:opacity-90 transition-all transform hover:scale-[1.02]"
+                className="block w-full px-4 py-3 bg-[#8B4513] text-white text-center font-medium rounded-xl soft-shadow hover:opacity-90 transition-all transform hover:scale-[1.02]"
               >
                 Log
               </Link>
@@ -350,7 +350,7 @@ function HomePageContent() {
                 />
                 <Link
                   href="/log"
-                  className="block w-full px-4 py-3 gradient-green-translucent text-white text-center font-medium rounded-xl soft-shadow hover:opacity-90 transition-all transform hover:scale-[1.02]"
+                  className="block w-full px-4 py-3 bg-[#8B4513] text-white text-center font-medium rounded-xl soft-shadow hover:opacity-90 transition-all transform hover:scale-[1.02]"
                 >
                   Log
                 </Link>

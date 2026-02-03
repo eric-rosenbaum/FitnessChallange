@@ -26,7 +26,7 @@ function DonutChart({ progress, size = 80, strokeWidth = 8, color = 'blue' }: Do
   
   const colorClasses = {
     blue: 'stroke-blue-400 opacity-75',
-    green: 'stroke-emerald-400 opacity-75',
+    green: 'stroke-[#065f46] opacity-75',
   }
   
   return (
@@ -188,7 +188,7 @@ export default function GroupProgressCard({
     })
   
   return (
-    <div className="glass-card rounded-2xl soft-shadow-lg p-3 sm:p-5 mb-4 border border-white/50 relative">
+    <div className="glass-card rounded-2xl soft-shadow-lg p-3 sm:p-5 mb-4 border border-red-100/30 relative">
       {/* Info icon - mobile: top right corner */}
       <div className="absolute top-3 right-3 sm:hidden" ref={infoRefMobile}>
         <button
@@ -217,7 +217,7 @@ export default function GroupProgressCard({
             <p className="mb-2">Each person can contribute up to 100% of their individual goal. For example, if the goal is 10 miles per person and one person logs 50 miles, only 10 miles count toward the group total.</p>
             <button
               onClick={() => setShowInfo(false)}
-              className="text-emerald-600 hover:text-emerald-700 font-medium"
+              className="text-[#8B4513] hover:text-[#6B4423] font-medium"
             >
               Got it
             </button>
@@ -261,7 +261,7 @@ export default function GroupProgressCard({
                 <p className="mb-2">Each person can contribute up to 100% of their individual goal. For example, if the goal is 10 miles per person and one person logs 50 miles, only 10 miles count toward the group total.</p>
                 <button
                   onClick={() => setShowInfo(false)}
-                  className="text-emerald-600 hover:text-emerald-700 font-medium"
+                  className="text-[#8B4513] hover:text-[#6B4423] font-medium"
                 >
                   Got it
                 </button>

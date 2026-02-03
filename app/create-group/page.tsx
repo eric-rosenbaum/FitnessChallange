@@ -65,7 +65,7 @@ export default function CreateGroupPage() {
   
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="glass-card rounded-2xl soft-shadow-lg p-8 w-full max-w-md border border-white/50">
+      <div className="glass-card rounded-2xl soft-shadow-lg p-8 w-full max-w-md border border-red-100/30">
         <h1 className="text-2xl font-bold text-gray-800 mb-2 tracking-tight text-center">
           Create Group
         </h1>
@@ -82,7 +82,7 @@ export default function CreateGroupPage() {
               type="text"
               value={groupName}
               onChange={(e) => setGroupName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
+              className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
               placeholder="My Fitness Group"
               required
               maxLength={100}
@@ -98,7 +98,7 @@ export default function CreateGroupPage() {
                 type="text"
                 value={inviteCode}
                 onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50 text-center font-semibold tracking-wider"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50 text-center font-semibold tracking-wider"
                 placeholder="ABC123"
                 required
                 maxLength={20}
@@ -106,7 +106,7 @@ export default function CreateGroupPage() {
               <button
                 type="button"
                 onClick={generateInviteCode}
-                className="px-4 py-2 border-2 border-emerald-500 text-emerald-600 rounded-xl hover:bg-emerald-50 font-medium transition-colors"
+                className="px-4 py-2 border-2 border-[#8B4513] text-[#8B4513] rounded-xl hover:bg-red-50 font-medium transition-colors"
               >
                 Generate
               </button>
@@ -125,7 +125,7 @@ export default function CreateGroupPage() {
           <button
             type="submit"
             disabled={isLoading || !groupName.trim() || !inviteCode.trim()}
-            className="w-full px-4 py-3 gradient-green-translucent text-white rounded-xl hover:opacity-90 disabled:opacity-50 soft-shadow font-medium transition-all"
+            className="w-full px-4 py-3 bg-[#8B4513] text-white rounded-xl hover:opacity-90 disabled:opacity-50 soft-shadow font-medium transition-all"
           >
             {isLoading ? 'Creating...' : 'Create Group'}
           </button>
@@ -134,7 +134,7 @@ export default function CreateGroupPage() {
         <div className="mt-6 text-center">
           <Link
             href="/"
-            className="text-sm text-emerald-600 hover:text-emerald-700 hover:underline"
+            className="text-sm text-[#8B4513] hover:text-[#6B4423] hover:underline"
           >
             ← Back to home
           </Link>

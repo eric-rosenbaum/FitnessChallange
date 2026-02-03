@@ -67,7 +67,7 @@ export default function OnboardingPage() {
   
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="glass-card rounded-2xl soft-shadow-lg p-8 w-full max-w-md border border-white/50">
+      <div className="glass-card rounded-2xl soft-shadow-lg p-8 w-full max-w-md border border-red-100/30">
         <h1 className="text-2xl font-bold text-gray-800 mb-2 tracking-tight text-center">
           Welcome!
         </h1>
@@ -84,7 +84,7 @@ export default function OnboardingPage() {
               type="text"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
+              className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
               placeholder="Your name"
               required
               maxLength={50}
@@ -94,7 +94,7 @@ export default function OnboardingPage() {
           <button
             type="submit"
             disabled={isLoading || !displayName.trim()}
-            className="w-full px-4 py-3 gradient-green-translucent text-white rounded-xl hover:opacity-90 disabled:opacity-50 soft-shadow font-medium transition-all"
+            className="w-full px-4 py-3 bg-[#8B4513] text-white rounded-xl hover:opacity-90 disabled:opacity-50 soft-shadow font-medium transition-all"
           >
             {isLoading ? 'Saving...' : 'Continue'}
           </button>
@@ -103,7 +103,7 @@ export default function OnboardingPage() {
         <div className="mt-6 text-center">
           <Link
             href="/login"
-            className="text-sm text-emerald-600 hover:text-emerald-700 hover:underline"
+            className="text-sm text-[#8B4513] hover:text-[#6B4423] hover:underline"
           >
             Sign out
           </Link>

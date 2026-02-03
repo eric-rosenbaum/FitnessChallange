@@ -29,7 +29,7 @@ function DonutChart({ progress, size = 80, strokeWidth = 8, color = 'blue' }: Do
   
   const colorClasses = {
     blue: 'stroke-blue-400 opacity-75',
-    green: 'stroke-emerald-400 opacity-75',
+    green: 'stroke-[#065f46] opacity-75',
   }
   
   return (
@@ -107,7 +107,7 @@ export default function ProgressCard({
   })
   
   return (
-    <div className="glass-card rounded-2xl soft-shadow-lg p-3 sm:p-5 mb-4 border border-white/50">
+    <div className="glass-card rounded-2xl soft-shadow-lg p-3 sm:p-5 mb-4 border border-red-100/30">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 sm:mb-4 gap-1">
         <h2 className="text-lg sm:text-xl font-semibold text-gray-800 tracking-tight">
           Your Progress (week of {weekLabel})
@@ -171,7 +171,7 @@ export default function ProgressCard({
       <div className="flex justify-end mt-2 sm:mt-3">
         <Link
           href="/edit-logs"
-          className="text-[10px] sm:text-xs text-emerald-600 hover:text-emerald-700 hover:underline font-medium flex items-center gap-1"
+          className="text-[10px] sm:text-xs text-[#8B4513] hover:text-[#6B4423] hover:underline font-medium flex items-center gap-1"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"

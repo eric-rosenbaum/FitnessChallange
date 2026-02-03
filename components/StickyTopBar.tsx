@@ -34,7 +34,7 @@ export default function StickyTopBar({ isAdmin, hostName, challengeCreatedBy }: 
           {/* Left: Profile Icon */}
           <Link
             href="/profile"
-            className="flex-shrink-0 p-1.5 sm:p-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50/50 rounded-xl transition-all"
+            className="flex-shrink-0 p-1.5 sm:p-2 text-[#8B4513] hover:text-[#6B4423] hover:bg-red-50/50 rounded-xl transition-all"
             aria-label="Profile"
           >
             <svg
@@ -69,7 +69,7 @@ export default function StickyTopBar({ isAdmin, hostName, challengeCreatedBy }: 
           <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
             <Link
               href="/settings"
-              className="p-1.5 sm:p-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50/50 rounded-xl transition-all"
+              className="p-1.5 sm:p-2 text-[#8B4513] hover:text-[#6B4423] hover:bg-red-50/50 rounded-xl transition-all"
               aria-label="Group settings"
             >
               <svg

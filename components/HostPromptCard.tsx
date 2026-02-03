@@ -12,7 +12,7 @@ export default function HostPromptCard({ weekAssignment }: HostPromptCardProps) 
   
   return (
     <Link href="/create-challenge">
-      <div className="glass-card rounded-2xl soft-shadow-lg p-5 mb-4 border-2 border-emerald-300/50 bg-gradient-to-r from-emerald-50/50 to-teal-50/50 cursor-pointer hover:border-emerald-400/70 transition-all transform hover:scale-[1.02]">
+      <div className="glass-card rounded-2xl soft-shadow-lg p-5 mb-4 border-2 border-red-300/50 bg-gradient-to-r from-red-50/50 to-red-100/50 cursor-pointer hover:border-red-400/70 transition-all transform hover:scale-[1.02]">
         <div className="flex items-center justify-between">
           <div className="flex-1">
             <h3 className="text-lg font-semibold text-gray-800 mb-1">
@@ -25,7 +25,7 @@ export default function HostPromptCard({ weekAssignment }: HostPromptCardProps) 
           <div className="ml-4">
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              className="h-6 w-6 text-emerald-600"
+              className="h-6 w-6 text-[#8B4513]"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
