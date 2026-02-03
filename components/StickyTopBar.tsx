@@ -52,7 +52,7 @@ export default function StickyTopBar({ isAdmin, hostName, challengeCreatedBy }: 
             </svg>
           </Link>
           <div className="flex flex-col items-center">
-            <h1 className="text-xl font-bold text-gray-800 tracking-tight">Fitness Challenge</h1>
+            <h1 className="text-xl font-bold text-gray-800 tracking-tight">FriendsFitnessChallenge</h1>
             {challengeCreatedBy && (
               <p className="text-xs text-gray-600 mt-0.5">
                 This week&apos;s challenge created by: <span className="font-semibold">{challengeCreatedBy}</span>

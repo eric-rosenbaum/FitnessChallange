@@ -1,16 +1,13 @@
 'use client'
 
-import Link from 'next/link'
-import type { UserProgress, StrengthExercise, WeekChallenge, WorkoutLog, CardioActivity } from '@/types'
+import type { StrengthExercise, WeekChallenge, WorkoutLog } from '@/types'
 
-interface ProgressCardProps {
-  progress: UserProgress
+interface GroupProgressCardProps {
   challenge: WeekChallenge
   exercises: StrengthExercise[]
   weekStartDate: string
   weekEndDate: string
   logs: WorkoutLog[]
-  userId: string
 }
 
 interface DonutChartProps {
@@ -21,8 +18,6 @@ interface DonutChartProps {
 }
 
 function DonutChart({ progress, size = 80, strokeWidth = 8, color = 'blue' }: DonutChartProps) {
-  // Smaller inner radius = thicker ring
-  // Use a larger strokeWidth relative to size for thicker rings
   const radius = (size - strokeWidth * 2) / 2
   const circumference = 2 * Math.PI * radius
   const offset = circumference - (progress * circumference)
@@ -67,15 +62,13 @@ function DonutChart({ progress, size = 80, strokeWidth = 8, color = 'blue' }: Do
   )
 }
 
-export default function ProgressCard({
-  progress,
+export default function GroupProgressCard({
   challenge,
   exercises,
   weekStartDate,
   weekEndDate,
   logs,
-  userId,
-}: ProgressCardProps) {
+}: GroupProgressCardProps) {
   const weekLabel = new Date(weekStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   
   // Calculate days remaining
@@ -85,26 +78,46 @@ export default function ProgressCard({
   endDate.setHours(23, 59, 59, 999)
   const daysRemaining = Math.max(0, Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)))
   
-  // Calculate cardio breakdown
-  const userCardioLogs = logs.filter(log => 
-    log.user_id === userId && 
-    log.log_type === 'cardio' && 
-    log.cardio_activity && 
-    log.cardio_amount
-  )
+  // Calculate group cardio total (sum of all users' cardio)
+  const groupCardioTotal = logs
+    .filter(log => log.log_type === 'cardio' && log.cardio_amount)
+    .reduce((sum, log) => sum + (log.cardio_amount || 0), 0)
   
-  const cardioBreakdown: Record<string, number> = {}
-  userCardioLogs.forEach(log => {
-    const activity = log.cardio_activity!
-    const capitalized = activity.charAt(0).toUpperCase() + activity.slice(1)
-    cardioBreakdown[capitalized] = (cardioBreakdown[capitalized] || 0) + (log.cardio_amount || 0)
+  const groupCardioProgress = Math.min(groupCardioTotal / challenge.cardio_target, 1)
+  
+  // Calculate group exercise totals (sum of all users' reps per exercise)
+  const groupExerciseTotals: Record<string, number> = {}
+  exercises.forEach(exercise => {
+    const total = logs
+      .filter(log => log.log_type === 'strength' && log.exercise_id === exercise.id && log.strength_reps)
+      .reduce((sum, log) => sum + (log.strength_reps || 0), 0)
+    groupExerciseTotals[exercise.id] = total
   })
+  
+  // Calculate strength overall progress (average across exercises)
+  const strengthProgresses = exercises.map(exercise => {
+    const total = groupExerciseTotals[exercise.id] || 0
+    return Math.min(total / exercise.target_reps, 1)
+  })
+  const groupStrengthProgress = strengthProgresses.length > 0
+    ? strengthProgresses.reduce((sum, p) => sum + p, 0) / strengthProgresses.length
+    : 0
+  
+  // Calculate cardio breakdown by activity type
+  const cardioBreakdown: Record<string, number> = {}
+  logs
+    .filter(log => log.log_type === 'cardio' && log.cardio_activity && log.cardio_amount)
+    .forEach(log => {
+      const activity = log.cardio_activity!
+      const capitalized = activity.charAt(0).toUpperCase() + activity.slice(1)
+      cardioBreakdown[capitalized] = (cardioBreakdown[capitalized] || 0) + (log.cardio_amount || 0)
+    })
   
   return (
     <div className="glass-card rounded-2xl soft-shadow-lg p-5 mb-4 border border-white/50">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-semibold text-gray-800 tracking-tight">
-          Your Progress (week of {weekLabel})
+          Group Progress (week of {weekLabel})
         </h2>
         <span className="text-sm text-gray-600 font-medium">
           {daysRemaining} {daysRemaining === 1 ? 'day' : 'days'} left in week
@@ -117,13 +130,13 @@ export default function ProgressCard({
         <div className="flex flex-col items-center">
           <div className="text-sm font-semibold text-gray-800 mb-2 tracking-wide">Cardio</div>
           <DonutChart
-            progress={progress.cardio_progress}
+            progress={groupCardioProgress}
             size={200}
             strokeWidth={28}
             color="green"
           />
           <div className="text-sm font-medium text-gray-800 mt-2 text-center mb-3">
-            {progress.cardio_total.toFixed(1)} / {challenge.cardio_target} {challenge.cardio_metric}
+            {groupCardioTotal.toFixed(1)} / {challenge.cardio_target} {challenge.cardio_metric}
           </div>
           {/* Cardio Breakdown */}
           <div className="w-full space-y-1 text-center">
@@ -139,18 +152,18 @@ export default function ProgressCard({
         <div className="flex flex-col items-center">
           <div className="text-sm font-semibold text-gray-800 mb-2 tracking-wide">Strength Overall</div>
           <DonutChart
-            progress={progress.strength_overall_progress}
+            progress={groupStrengthProgress}
             size={200}
             strokeWidth={28}
             color="blue"
           />
           <div className="text-sm font-medium text-gray-800 mt-2 text-center mb-3">
-            {Math.round(progress.strength_overall_progress * 100)}% complete
+            {Math.round(groupStrengthProgress * 100)}% complete
           </div>
           {/* Exercise List */}
           <div className="w-full space-y-1 text-center">
             {exercises.map(exercise => {
-              const total = progress.exercise_totals[exercise.id] || 0
+              const total = groupExerciseTotals[exercise.id] || 0
               return (
                 <div key={exercise.id} className="text-xs text-gray-600 font-medium">
                   {exercise.name}: {Math.round(total)} / {exercise.target_reps}
@@ -159,30 +172,6 @@ export default function ProgressCard({
             })}
           </div>
         </div>
-      </div>
-      
-      {/* Edit Logs Button - Bottom Right */}
-      <div className="flex justify-end mt-3">
-        <Link
-          href="/edit-logs"
-          className="text-xs text-emerald-600 hover:text-emerald-700 hover:underline font-medium flex items-center gap-1"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-            />
-          </svg>
-          Edit logs
-        </Link>
       </div>
     </div>
   )

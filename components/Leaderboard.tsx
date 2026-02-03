@@ -1,14 +1,17 @@
 'use client'
 
 import { useState } from 'react'
-import type { UserProgress } from '@/types'
+import type { UserProgress, WorkoutLog, StrengthExercise, WeekChallenge } from '@/types'
 
 interface LeaderboardProps {
   progressList: UserProgress[]
   currentUserId: string
+  logs: WorkoutLog[]
+  exercises: StrengthExercise[]
+  challenge: WeekChallenge
 }
 
-export default function Leaderboard({ progressList, currentUserId }: LeaderboardProps) {
+export default function Leaderboard({ progressList, currentUserId, logs, exercises, challenge }: LeaderboardProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   
   // Get top 3
@@ -22,6 +25,44 @@ export default function Leaderboard({ progressList, currentUserId }: Leaderboard
   // Determine what to show
   const displayList = isExpanded ? progressList : top3
   const hasMore = progressList.length > 3
+
+  // Calculate breakdown for a user
+  const getUserBreakdown = (userId: string): string => {
+    const userLogs = logs.filter(log => log.user_id === userId)
+    
+    // Calculate cardio total
+    const cardioTotal = userLogs
+      .filter(log => log.log_type === 'cardio' && log.cardio_amount)
+      .reduce((sum, log) => sum + (log.cardio_amount || 0), 0)
+    
+    // Calculate exercise totals
+    const exerciseTotals: Record<string, number> = {}
+    userLogs
+      .filter(log => log.log_type === 'strength' && log.exercise_id && log.strength_reps)
+      .forEach(log => {
+        const exId = log.exercise_id!
+        exerciseTotals[exId] = (exerciseTotals[exId] || 0) + (log.strength_reps || 0)
+      })
+    
+    // Build breakdown string
+    const parts: string[] = []
+    
+    // Cardio
+    if (cardioTotal > 0) {
+      const metric = challenge.cardio_metric === 'miles' ? 'mi' : 'min'
+      parts.push(`Cardio: ${cardioTotal.toFixed(1)} ${metric}`)
+    }
+    
+    // Exercises
+    exercises.forEach(exercise => {
+      const total = exerciseTotals[exercise.id] || 0
+      if (total > 0) {
+        parts.push(`${exercise.name}: ${Math.round(total)}`)
+      }
+    })
+    
+    return parts.join('       ')
+  }
 
   return (
     <div className="glass-card rounded-2xl soft-shadow-lg p-5 mb-4 border border-white/50">
@@ -61,6 +102,11 @@ export default function Leaderboard({ progressList, currentUserId }: Leaderboard
                   style={{ width: `${Math.min(progress.total_progress * 100, 100)}%` }}
                 />
               </div>
+              {getUserBreakdown(progress.user_id) && (
+                <div className="text-xs text-gray-500 mt-1 truncate">
+                  {getUserBreakdown(progress.user_id)}
+                </div>
+              )}
             </div>
             <div className="flex-shrink-0 text-sm font-medium text-gray-700">
               {Math.round(progress.total_progress * 100)}%
@@ -85,6 +131,11 @@ export default function Leaderboard({ progressList, currentUserId }: Leaderboard
                     style={{ width: `${Math.min(currentUser.total_progress * 100, 100)}%` }}
                   />
                 </div>
+                {getUserBreakdown(currentUser.user_id) && (
+                  <div className="text-xs text-gray-500 mt-1 truncate">
+                    {getUserBreakdown(currentUser.user_id)}
+                  </div>
+                )}
               </div>
               <div className="flex-shrink-0 text-sm font-medium text-gray-700">
                 {Math.round(currentUser.total_progress * 100)}%

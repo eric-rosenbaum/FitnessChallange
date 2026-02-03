@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import StickyTopBar from '@/components/StickyTopBar'
 import ProgressCard from '@/components/ProgressCard'
+import GroupProgressCard from '@/components/GroupProgressCard'
 import Leaderboard from '@/components/Leaderboard'
 import ActivityFeed from '@/components/ActivityFeed'
 import EmptyState from '@/components/EmptyState'
@@ -262,10 +263,22 @@ function HomePageContent() {
               </Link>
             </>
           )}
-          {allProgress.length > 0 && (
+          {activeWeek?.challenge && (
+            <GroupProgressCard
+              challenge={activeWeek.challenge}
+              exercises={exercises.length > 0 ? exercises : activeWeek.exercises}
+              weekStartDate={activeWeek.week_assignment.start_date}
+              weekEndDate={activeWeek.week_assignment.end_date}
+              logs={logs}
+            />
+          )}
+          {allProgress.length > 0 && activeWeek?.challenge && (
             <Leaderboard
               progressList={allProgress}
               currentUserId={user?.id || ''}
+              logs={logs}
+              exercises={exercises.length > 0 ? exercises : activeWeek.exercises}
+              challenge={activeWeek.challenge}
             />
           )}
           {activityFeed.length > 0 && (
@@ -301,10 +314,22 @@ function HomePageContent() {
             <ActivityFeed feedItems={activityFeed} challenge={activeWeek?.challenge} />
           </div>
           <div className="space-y-4">
-            {allProgress.length > 0 && (
+            {activeWeek?.challenge && (
+              <GroupProgressCard
+                challenge={activeWeek.challenge}
+                exercises={exercises.length > 0 ? exercises : activeWeek.exercises}
+                weekStartDate={activeWeek.week_assignment.start_date}
+                weekEndDate={activeWeek.week_assignment.end_date}
+                logs={logs}
+              />
+            )}
+            {allProgress.length > 0 && activeWeek?.challenge && (
               <Leaderboard
                 progressList={allProgress}
                 currentUserId={user?.id || ''}
+                logs={logs}
+                exercises={exercises.length > 0 ? exercises : activeWeek.exercises}
+                challenge={activeWeek.challenge}
               />
             )}
           </div>
