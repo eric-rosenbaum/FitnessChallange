@@ -1,18 +1,28 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
 interface StickyTopBarProps {
   isAdmin?: boolean
+  hostName?: string
+  challengeCreatedBy?: string
 }
 
-export default function StickyTopBar({ isAdmin }: StickyTopBarProps) {
+export default function StickyTopBar({ isAdmin, hostName, challengeCreatedBy }: StickyTopBarProps) {
   const router = useRouter()
-  const supabase = createClient()
+  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setSupabase(createClient())
+    }
+  }, [])
   
   const handleLogout = async () => {
+    if (!supabase) return
     await supabase.auth.signOut()
     router.push('/login')
   }
@@ -41,7 +51,14 @@ export default function StickyTopBar({ isAdmin }: StickyTopBarProps) {
               />
             </svg>
           </Link>
-          <h1 className="text-xl font-bold text-gray-800 tracking-tight">Fitness Challenge</h1>
+          <div className="flex flex-col items-center">
+            <h1 className="text-xl font-bold text-gray-800 tracking-tight">Fitness Challenge</h1>
+            {challengeCreatedBy && (
+              <p className="text-xs text-gray-600 mt-0.5">
+                This week&apos;s challenge created by: <span className="font-semibold">{challengeCreatedBy}</span>
+              </p>
+            )}
+          </div>
           <div className="absolute right-0 flex items-center gap-2">
             <Link
               href="/settings"
@@ -63,13 +80,15 @@ export default function StickyTopBar({ isAdmin }: StickyTopBarProps) {
                 />
               </svg>
             </Link>
-            <button
-              onClick={handleLogout}
-              className="p-2 text-gray-600 hover:text-gray-700 hover:bg-white/50 rounded-xl transition-colors text-sm font-medium"
-              aria-label="Sign out"
-            >
-              Sign Out
-            </button>
+            {supabase && (
+              <button
+                onClick={handleLogout}
+                className="p-2 text-gray-600 hover:text-gray-700 hover:bg-white/50 rounded-xl transition-colors text-sm font-medium"
+                aria-label="Sign out"
+              >
+                Sign Out
+              </button>
+            )}
           </div>
         </div>
       </div>

@@ -1,7 +1,7 @@
 'use client'
 
-import { useMemo, useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useMemo, useEffect, useState, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import StickyTopBar from '@/components/StickyTopBar'
 import ProgressCard from '@/components/ProgressCard'
@@ -22,8 +22,9 @@ import {
 import type { ActiveWeek, UserProgress, ActivityFeedItem } from '@/types'
 import { calculateUserProgress } from '@/lib/dummyData'
 
-export default function HomePage() {
+function HomePageContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user, loading: authLoading, challenge, exercises, logs, refreshLogs, setChallenge, setExercises } = useApp()
   const { group, membership, isLoading: groupLoading } = useUserGroup()
   const [activeWeek, setActiveWeek] = useState<ActiveWeek | null>(null)
@@ -65,12 +66,26 @@ export default function HomePage() {
       return
     }
 
+    let cancelled = false
+
     async function fetchData() {
       try {
+        setIsLoading(true)
         // Get active week
         if (!group) return
         const weekData = await getActiveWeek(group.id)
+        
+        if (cancelled) return
+        
         setActiveWeek(weekData)
+        
+        console.log('[HomePage] Active week data:', {
+          hasWeekAssignment: !!weekData?.week_assignment,
+          hasChallenge: !!weekData?.challenge,
+          hostUserId: weekData?.week_assignment?.host_user_id,
+          currentUserId: user?.id,
+          isHost: weekData?.week_assignment?.host_user_id === user?.id
+        })
 
         if (weekData?.challenge) {
           setChallenge(weekData.challenge)
@@ -93,16 +108,48 @@ export default function HomePage() {
         } else {
           setChallenge(null)
           setExercises([])
+          // Still show leaderboard and activity feed even without challenge
+          if (weekData?.week_assignment) {
+            const leaderboard = await getLeaderboard(group.id)
+            setAllProgress(leaderboard)
+            const feed = await getActivityFeed(group.id, 5)
+            setActivityFeed(feed)
+          }
         }
       } catch (error) {
+        if (cancelled) return
         console.error('Error fetching data:', error)
+        // Set activeWeek to null on error to prevent infinite loops
+        setActiveWeek(null)
       } finally {
-        setIsLoading(false)
+        if (!cancelled) {
+          setIsLoading(false)
+        }
       }
     }
 
     fetchData()
-  }, [group, user, authLoading, groupLoading, refreshLogs, setChallenge, setExercises])
+    
+    return () => {
+      cancelled = true
+    }
+  }, [group?.id, user?.id, authLoading, groupLoading]) // Only depend on IDs, not objects
+
+  // Refresh when returning from settings (check for refresh param)
+  useEffect(() => {
+    const refresh = searchParams.get('refresh')
+    if (refresh === 'true' && group) {
+      // Remove the refresh param from URL
+      window.history.replaceState({}, '', window.location.pathname)
+      // Force a re-fetch
+      getActiveWeek(group.id)
+        .then(setActiveWeek)
+        .catch(err => {
+          console.error('Error refreshing active week:', err)
+          setActiveWeek(null)
+        })
+    }
+  }, [searchParams, group?.id])
 
   // Refresh logs when challenge changes
   useEffect(() => {
@@ -157,15 +204,20 @@ export default function HomePage() {
     )
   }
 
-  const isHost = activeWeek?.week_assignment.host_user_id === user?.id
+  const isHost = activeWeek?.week_assignment?.host_user_id === user?.id
   const isAdmin = membership?.role === 'admin'
-  const showHostPrompt = isHost && !activeWeek?.challenge
+  const showHostPrompt = isHost && activeWeek?.week_assignment && !activeWeek?.challenge
 
-  // Empty states
-  if (!activeWeek?.challenge && !showHostPrompt) {
+  // Empty states - only show if there's no week assignment at all
+  // If there's a week assignment but no challenge, show the host prompt or waiting message
+  if (!activeWeek?.week_assignment) {
     return (
       <div className="min-h-screen">
-        <StickyTopBar isAdmin={isAdmin} />
+        <StickyTopBar 
+          isAdmin={isAdmin} 
+          hostName={activeWeek?.host_name}
+          challengeCreatedBy={activeWeek?.challenge ? activeWeek.host_name : undefined}
+        />
         <div className="max-w-4xl mx-auto px-4 py-6">
           <EmptyState
             weekAssignment={activeWeek?.week_assignment}
@@ -179,15 +231,19 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen">
-      <StickyTopBar isAdmin={isAdmin} />
+      <StickyTopBar 
+        isAdmin={isAdmin} 
+        hostName={activeWeek?.host_name}
+        challengeCreatedBy={activeWeek?.challenge ? activeWeek.host_name : undefined}
+      />
       
       <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Mobile: Vertical stack */}
         <div className="lg:hidden space-y-4">
-          {showHostPrompt && activeWeek && (
+          {showHostPrompt && activeWeek?.week_assignment && (
             <HostPromptCard weekAssignment={activeWeek.week_assignment} />
           )}
-          {currentUserProgress && activeWeek?.challenge && (
+          {activeWeek?.challenge && currentUserProgress && (
             <>
               <ProgressCard
                 progress={currentUserProgress}
@@ -206,20 +262,24 @@ export default function HomePage() {
               </Link>
             </>
           )}
-          <Leaderboard
-            progressList={allProgress}
-            currentUserId={user?.id || ''}
-          />
-          <ActivityFeed feedItems={activityFeed} challenge={activeWeek?.challenge} />
+          {allProgress.length > 0 && (
+            <Leaderboard
+              progressList={allProgress}
+              currentUserId={user?.id || ''}
+            />
+          )}
+          {activityFeed.length > 0 && (
+            <ActivityFeed feedItems={activityFeed} challenge={activeWeek?.challenge} />
+          )}
         </div>
         
         {/* Desktop: Two-column layout */}
         <div className="hidden lg:grid lg:grid-cols-2 lg:gap-6">
           <div className="space-y-4">
-            {showHostPrompt && activeWeek && (
+            {showHostPrompt && activeWeek?.week_assignment && (
               <HostPromptCard weekAssignment={activeWeek.week_assignment} />
             )}
-            {currentUserProgress && activeWeek?.challenge && (
+            {activeWeek?.challenge && currentUserProgress && (
               <>
                 <ProgressCard
                   progress={currentUserProgress}
@@ -241,13 +301,27 @@ export default function HomePage() {
             <ActivityFeed feedItems={activityFeed} challenge={activeWeek?.challenge} />
           </div>
           <div className="space-y-4">
-            <Leaderboard
-              progressList={allProgress}
-              currentUserId={user?.id || ''}
-            />
+            {allProgress.length > 0 && (
+              <Leaderboard
+                progressList={allProgress}
+                currentUserId={user?.id || ''}
+              />
+            )}
           </div>
         </div>
       </div>
     </div>
+  )
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-gray-600">Loading...</div>
+      </div>
+    }>
+      <HomePageContent />
+    </Suspense>
   )
 }

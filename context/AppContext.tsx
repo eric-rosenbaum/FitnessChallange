@@ -28,9 +28,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [exercises, setExercises] = useState<StrengthExercise[]>([])
   const [user, setUser] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
 
   useEffect(() => {
+    // Only create client in browser
+    if (typeof window === 'undefined') return
+    
+    const supabase = createClient()
+
     // Get current user
     supabase.auth.getUser().then(({ data: { user } }) => {
       setUser(user)
@@ -43,7 +47,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })
 
     return () => subscription.unsubscribe()
-  }, [supabase])
+  }, [])
   
   const refreshLogs = async (challengeId: string) => {
     try {

@@ -50,20 +50,43 @@ export async function getGroup(groupId: string): Promise<Group | null> {
 
 export async function createGroup(name: string, inviteCode: string, userId: string): Promise<Group> {
   const supabase = createClient()
+  
+  // Verify user is authenticated
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user || user.id !== userId) {
+    throw new Error('Authentication required')
+  }
+  
+  // Insert group
+  const insertData = { name, invite_code: inviteCode, created_by: userId }
   const { data: group, error: groupError } = await supabase
     .from('groups')
-    .insert({ name, invite_code: inviteCode, created_by: userId })
+    .insert(insertData)
     .select()
     .single()
   
-  if (groupError) throw groupError
+  if (groupError) {
+    // Handle duplicate invite code error (409 Conflict)
+    if (groupError.code === '23505') {
+      throw new Error('This invite code is already taken. Please generate a new one.')
+    }
+    throw groupError
+  }
+  
+  if (!group) {
+    throw new Error('Failed to create group')
+  }
   
   // Add creator as admin
   const { error: membershipError } = await supabase
     .from('group_memberships')
     .insert({ group_id: group.id, user_id: userId, role: 'admin' })
   
-  if (membershipError) throw membershipError
+  if (membershipError) {
+    // If membership insert fails, try to clean up the group
+    await supabase.from('groups').delete().eq('id', group.id)
+    throw membershipError
+  }
   
   return group
 }
@@ -129,47 +152,70 @@ export async function addMemberByEmail(groupId: string, email: string): Promise<
 // Week Assignments
 export async function getActiveWeek(groupId: string): Promise<ActiveWeek | null> {
   const supabase = createClient()
-  const { data, error } = await supabase
-    .from('v_active_week')
+  
+  // Query week_assignments table directly instead of view (to avoid 406 errors)
+  // Find the active week assignment (where current date is between start and end)
+  const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD format
+  
+  const { data: assignmentData, error: assignmentError } = await supabase
+    .from('week_assignments')
     .select('*')
     .eq('group_id', groupId)
-    .single()
+    .lte('start_date', today)
+    .gte('end_date', today)
+    .order('start_date', { ascending: false })
+    .limit(1)
+    .maybeSingle()
   
-  if (error && error.code !== 'PGRST116') throw error // PGRST116 = no rows returned
-  if (!data) return null
+  if (assignmentError) {
+    console.error('Error fetching week assignment:', assignmentError)
+    return null
+  }
+  
+  if (!assignmentData) {
+    return null
+  }
   
   const assignment: WeekAssignment = {
-    id: data.id,
-    group_id: data.group_id,
-    start_date: data.start_date,
-    end_date: data.end_date,
-    host_user_id: data.host_user_id,
-    assigned_by: data.assigned_by,
-    created_at: '', // Not in view
+    id: assignmentData.id,
+    group_id: assignmentData.group_id,
+    start_date: assignmentData.start_date,
+    end_date: assignmentData.end_date,
+    host_user_id: assignmentData.host_user_id,
+    assigned_by: assignmentData.assigned_by,
+    created_at: assignmentData.created_at,
   }
+  
+  // Get host name
+  const { data: hostProfile } = await supabase
+    .from('profiles')
+    .select('display_name')
+    .eq('id', assignmentData.host_user_id)
+    .single()
+  
+  const host_name = hostProfile?.display_name || 'Unknown'
+  
+  // Get challenge if it exists
+  const { data: challengeData, error: challengeError } = await supabase
+    .from('week_challenges')
+    .select('*')
+    .eq('week_assignment_id', assignmentData.id)
+    .maybeSingle()
   
   let challenge: WeekChallenge | undefined
   let exercises: StrengthExercise[] = []
   
-  if (data.challenge_id) {
-    const { data: challengeData, error: challengeError } = await supabase
-      .from('week_challenges')
-      .select('*')
-      .eq('id', data.challenge_id)
-      .single()
+  if (!challengeError && challengeData) {
+    challenge = challengeData
     
-    if (!challengeError && challengeData) {
-      challenge = challengeData
-      
-      const { data: exercisesData, error: exercisesError } = await supabase
-        .from('strength_exercises')
-        .select('*')
-        .eq('week_challenge_id', challenge.id)
-        .order('sort_order')
-      
-      if (!exercisesError && exercisesData) {
-        exercises = exercisesData
-      }
+    const { data: exercisesData, error: exercisesError } = await supabase
+      .from('strength_exercises')
+      .select('*')
+      .eq('week_challenge_id', challenge.id)
+      .order('sort_order')
+    
+    if (!exercisesError && exercisesData) {
+      exercises = exercisesData
     }
   }
   
@@ -177,7 +223,7 @@ export async function getActiveWeek(groupId: string): Promise<ActiveWeek | null>
     week_assignment: assignment,
     challenge,
     exercises,
-    host_name: data.host_name,
+    host_name,
   }
 }
 

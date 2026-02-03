@@ -15,20 +15,38 @@ function LogPageContent() {
   const searchParams = useSearchParams()
   const editLogId = searchParams.get('edit')
   const { user, logs, refreshLogs, challenge, exercises } = useApp()
-  const { group } = useUserGroup()
+  const { group, isLoading: groupLoading } = useUserGroup()
   const [activeWeek, setActiveWeek] = useState<any>(null)
+  const [isLoadingWeek, setIsLoadingWeek] = useState(true)
   const [activeTab, setActiveTab] = useState<'cardio' | 'strength'>('cardio')
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const supabase = createClient()
+  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setSupabase(createClient())
+    }
+  }, [])
   
   const editingLog = editLogId ? logs.find(log => log.id === editLogId && log.user_id === user?.id) : null
   
   // Fetch active week
   useEffect(() => {
     if (group) {
-      getActiveWeek(group.id).then(setActiveWeek)
+      setIsLoadingWeek(true)
+      getActiveWeek(group.id)
+        .then((week) => {
+          setActiveWeek(week)
+          setIsLoadingWeek(false)
+        })
+        .catch((error) => {
+          console.error('Error fetching active week:', error)
+          setIsLoadingWeek(false)
+        })
+    } else if (!groupLoading) {
+      setIsLoadingWeek(false)
     }
-  }, [group])
+  }, [group, groupLoading])
   
   // Form state
   const [cardioActivity, setCardioActivity] = useState<CardioActivity>('run')
@@ -103,6 +121,18 @@ function LogPageContent() {
     }
   }
   
+  // Show loading state while fetching
+  if (isLoadingWeek || groupLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="glass-card rounded-2xl soft-shadow-lg p-6 text-center max-w-md border border-white/50">
+          <p className="text-gray-700 mb-4 font-medium">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+  
+  // Show error/empty state only after loading is complete
   if (!activeWeek?.challenge) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">

@@ -35,6 +35,7 @@ export default function CreateGroupPage() {
     setError('')
     
     const { data: { user } } = await supabase.auth.getUser()
+    
     if (!user) {
       setError('You must be logged in to create a group')
       setIsLoading(false)
@@ -51,7 +52,13 @@ export default function CreateGroupPage() {
       await createGroup(groupName.trim(), inviteCode.toUpperCase().trim(), user.id)
       router.push('/')
     } catch (err: any) {
-      setError(err.message || 'Failed to create group')
+      // Handle duplicate invite code - regenerate and show message
+      if (err.message?.includes('invite code is already taken')) {
+        generateInviteCode()
+        setError('That invite code was taken. A new one has been generated. Please try again.')
+      } else {
+        setError(err.message || 'Failed to create group')
+      }
       setIsLoading(false)
     }
   }

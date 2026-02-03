@@ -6,9 +6,16 @@ export function useUserGroup() {
   const [group, setGroup] = useState<Group | null>(null)
   const [membership, setMembership] = useState<GroupMembership | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const supabase = createClient()
 
   useEffect(() => {
+    // Only create client in browser
+    if (typeof window === 'undefined') {
+      setIsLoading(false)
+      return
+    }
+
+    const supabase = createClient()
+
     async function fetchUserGroup() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
@@ -32,7 +39,7 @@ export function useUserGroup() {
     }
 
     fetchUserGroup()
-  }, [supabase])
+  }, [])
 
   return { group, membership, isLoading }
 }

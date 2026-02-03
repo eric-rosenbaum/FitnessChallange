@@ -53,12 +53,15 @@ You have two options:
    - `supabase/migrations/003_rls_policies.sql`
    - `supabase/migrations/004_triggers.sql`
    - `supabase/migrations/005_fix_rls_recursion.sql` (IMPORTANT: Run this to fix infinite recursion error)
+   - `supabase/migrations/016_disable_rls.sql` (OPTIONAL: Disables RLS for personal use - only if you want to skip security)
 3. Copy the contents of each file
 4. Paste into SQL Editor
 5. Click "Run" (or press Cmd/Ctrl + Enter)
-6. Repeat for all 5 files in order
+6. Repeat for all files in order
 
-**Important**: If you see an "infinite recursion" error when updating your profile, you need to run migration `005_fix_rls_recursion.sql` to fix the RLS policies.
+**Important**: 
+- If you see an "infinite recursion" error when updating your profile, you need to run migration `005_fix_rls_recursion.sql` to fix the RLS policies.
+- If you're having JWT/RLS issues and just want to get the app working for personal use, run `016_disable_rls.sql` to disable all security (⚠️ only for personal/testing use!).
 
 ### Option B: Using Supabase CLI (Advanced)
 

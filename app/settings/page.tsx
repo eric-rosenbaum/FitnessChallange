@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApp } from '@/context/AppContext'
@@ -13,14 +14,19 @@ import {
   createWeekAssignment,
   getActiveWeek,
 } from '@/lib/db/queries'
-import { createClient } from '@/lib/supabase/client'
-import type { GroupMembership } from '@/types'
+import type { GroupMembership, ActiveWeek } from '@/types'
 
 export default function SettingsPage() {
   const router = useRouter()
   const { user } = useApp()
   const { group, membership } = useUserGroup()
-  const supabase = createClient()
+  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setSupabase(createClient())
+    }
+  }, [])
   
   const [memberships, setMemberships] = useState<GroupMembership[]>([])
   const [groupName, setGroupName] = useState('')
@@ -34,9 +40,11 @@ export default function SettingsPage() {
   
   const [newMemberEmail, setNewMemberEmail] = useState('')
   const [isAddingMember, setIsAddingMember] = useState(false)
+  const [activeWeek, setActiveWeek] = useState<ActiveWeek | null>(null)
   
   const currentUserMembership = memberships.find(m => m.user_id === user?.id)
   const isAdmin = currentUserMembership?.role === 'admin'
+  const hasActiveWeek = !!activeWeek?.week_assignment
   
   // Fetch group data
   useEffect(() => {
@@ -54,7 +62,8 @@ export default function SettingsPage() {
       
       // Fetch active week for host assignment
       getActiveWeek(group.id).then((week) => {
-        if (week) {
+        setActiveWeek(week)
+        if (week?.week_assignment) {
           setHostUserId(week.week_assignment.host_user_id)
           setAssignmentStartDate(week.week_assignment.start_date)
           setAssignmentEndDate(week.week_assignment.end_date)
@@ -74,6 +83,8 @@ export default function SettingsPage() {
   const [membersWithProfiles, setMembersWithProfiles] = useState<any[]>([])
   
   useEffect(() => {
+    if (!supabase) return
+    
     async function fetchProfiles() {
       const membersWithProfilesData = await Promise.all(
         memberships.map(async (m) => {
@@ -165,16 +176,32 @@ export default function SettingsPage() {
     
     setIsAssigning(true)
     try {
-      await createWeekAssignment(
+      console.log('[Settings] Creating week assignment:', {
+        groupId: group.id,
+        startDate: assignmentStartDate,
+        endDate: assignmentEndDate,
+        hostUserId,
+        assignedBy: user.id
+      })
+      
+      const assignment = await createWeekAssignment(
         group.id,
         assignmentStartDate,
         assignmentEndDate,
         hostUserId,
         user.id
       )
+      
+      console.log('[Settings] Week assignment created:', assignment)
+      
+      // Refresh the active week data
+      const updatedWeek = await getActiveWeek(group.id)
+      setActiveWeek(updatedWeek)
+      
       alert('Weekly host assigned!')
-      router.push('/')
+      router.push('/?refresh=true')
     } catch (error: any) {
+      console.error('[Settings] Error creating week assignment:', error)
       alert('Error: ' + (error.message || 'Failed to assign host'))
       setIsAssigning(false)
     }
@@ -296,10 +323,11 @@ export default function SettingsPage() {
             </div>
           </div>
           
-          {/* Assign Weekly Host (Admin Only) */}
-          <div className="glass-card rounded-2xl soft-shadow-lg p-6 border border-white/50">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4 tracking-tight">Assign Weekly Host</h2>
-            {isAdmin ? (
+          {/* Assign Weekly Host (Admin Only) - Hide if there's already an active week */}
+          {!hasActiveWeek && (
+            <div className="glass-card rounded-2xl soft-shadow-lg p-6 border border-white/50">
+              <h2 className="text-xl font-semibold text-gray-800 mb-4 tracking-tight">Assign Weekly Host</h2>
+              {isAdmin ? (
               <form onSubmit={handleAssignHost} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -353,10 +381,35 @@ export default function SettingsPage() {
                   {isAssigning ? 'Assigning...' : 'Assign Host'}
                 </button>
               </form>
-            ) : (
-              <p className="text-gray-700 font-medium text-center">Only group admins can assign weekly hosts.</p>
-            )}
-          </div>
+              ) : (
+                <p className="text-gray-700 font-medium text-center">Only group admins can assign weekly hosts.</p>
+              )}
+            </div>
+          )}
+          
+          {/* Show current week assignment if it exists */}
+          {hasActiveWeek && activeWeek?.week_assignment && (
+            <div className="glass-card rounded-2xl soft-shadow-lg p-6 border border-white/50">
+              <h2 className="text-xl font-semibold text-gray-800 mb-4 tracking-tight">Current Week Assignment</h2>
+              <div className="space-y-2">
+                <p className="text-gray-700">
+                  <span className="font-medium">Host:</span> {activeWeek.host_name || 'Unknown'}
+                </p>
+                <p className="text-gray-700">
+                  <span className="font-medium">Week:</span> {new Date(activeWeek.week_assignment.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(activeWeek.week_assignment.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                </p>
+                {activeWeek.challenge ? (
+                  <p className="text-emerald-600 font-medium">
+                    ✓ Challenge has been created
+                  </p>
+                ) : (
+                  <p className="text-amber-600 font-medium">
+                    ⏳ Waiting for host to create challenge
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
