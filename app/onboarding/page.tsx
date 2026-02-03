@@ -25,7 +25,7 @@ export default function OnboardingPage() {
           .single()
           .then(({ data }) => {
             // Check if display_name exists and is not empty/default
-            const displayName = (data as { display_name?: string })?.display_name
+            const displayName = data?.display_name
             // Redirect to home if display_name is set and not empty/default
             if (displayName && displayName.trim() && displayName !== 'User') {
               router.push('/')
