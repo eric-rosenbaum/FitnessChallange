@@ -13,6 +13,7 @@ function LoginPageContent() {
   const [isSignUp, setIsSignUp] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [message, setMessage] = useState('')
+  const [lastSignupAttempt, setLastSignupAttempt] = useState<number>(0)
   
   const supabase = createClient()
   
@@ -33,6 +34,21 @@ function LoginPageContent() {
     
     try {
       if (isSignUp) {
+        // Rate limiting: prevent signup attempts more than once every 5 seconds
+        // Set to 0 to disable client-side rate limiting (not recommended)
+        const now = Date.now()
+        const timeSinceLastAttempt = now - lastSignupAttempt
+        const minTimeBetweenAttempts = 5000 // 5 seconds (change to 0 to disable, or increase for stricter limiting)
+        
+        if (minTimeBetweenAttempts > 0 && timeSinceLastAttempt < minTimeBetweenAttempts) {
+          const secondsRemaining = Math.ceil((minTimeBetweenAttempts - timeSinceLastAttempt) / 1000)
+          setMessage(`Please wait ${secondsRemaining} second${secondsRemaining > 1 ? 's' : ''} before trying again.`)
+          setIsLoading(false)
+          return
+        }
+        
+        setLastSignupAttempt(now)
+        
         // Sign up
         const { error, data } = await supabase.auth.signUp({
           email,
@@ -43,7 +59,12 @@ function LoginPageContent() {
         })
         
         if (error) {
-          setMessage(error.message)
+          // Handle rate limit errors specifically
+          if (error.message.includes('rate limit') || error.message.includes('too many requests') || error.status === 429) {
+            setMessage('Too many signup attempts. Please wait a few minutes and try again.')
+          } else {
+            setMessage(error.message)
+          }
           setIsLoading(false)
         } else {
           // Check if email confirmation is required

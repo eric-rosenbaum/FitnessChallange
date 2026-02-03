@@ -173,7 +173,7 @@ function EditLogsPageContent() {
                         <div className="flex items-center gap-2">
                           <input
                             type="number"
-                            step={log.log_type === 'cardio' ? '0.1' : '1'}
+                            step={log.log_type === 'cardio' ? 'any' : '1'}
                             min="0"
                             value={editAmount}
                             onChange={(e) => setEditAmount(e.target.value)}

@@ -205,7 +205,7 @@ function LogPageContent() {
                   </label>
                   <input
                     type="number"
-                    step="0.1"
+                    step="any"
                     min="0"
                     value={cardioAmount}
                     onChange={(e) => setCardioAmount(e.target.value)}
