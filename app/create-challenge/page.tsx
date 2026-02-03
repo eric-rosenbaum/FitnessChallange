@@ -235,7 +235,7 @@ export default function CreateChallengePage() {
               <button
                 type="button"
                 onClick={handleAddExercise}
-                className="text-sm font-medium text-[#8B4513] hover:text-[#6B4423] px-3 py-1 rounded-lg hover:bg-red-50 transition-colors"
+                className="text-sm font-medium text-[#8B4513] hover:text-[#6B4423] px-3 py-1 rounded-lg hover:bg-green-50 transition-colors"
               >
                 + Add Exercise
               </button>

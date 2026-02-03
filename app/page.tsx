@@ -221,7 +221,7 @@ function HomePageContent() {
               </Link>
               <Link
                 href="/join"
-                className="px-6 py-3 border-2 border-[#8B4513] text-[#8B4513] rounded-xl hover:bg-red-50 transition-all font-medium"
+                className="px-6 py-3 border-2 border-[#8B4513] text-[#8B4513] rounded-xl hover:bg-green-50 transition-all font-medium"
               >
                 Join Group
               </Link>

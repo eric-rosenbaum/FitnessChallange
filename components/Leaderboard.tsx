@@ -84,7 +84,7 @@ export default function Leaderboard({ progressList, currentUserId, logs, exercis
                 key={progress.user_id}
                 className={`flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-xl transition-all ${
                   progress.user_id === currentUserId 
-                    ? 'bg-gradient-to-r from-red-50 to-red-100/50 border border-red-200/50' 
+                    ? 'bg-gradient-to-r from-green-50 to-green-100/50 border border-green-200/50' 
                     : 'hover:bg-gray-50/50'
                 }`}
               >
@@ -117,7 +117,7 @@ export default function Leaderboard({ progressList, currentUserId, logs, exercis
         {!isExpanded && showCurrentUser && currentUser && (
           <>
             <div className="border-t border-gray-200 my-2"></div>
-            <div className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-xl bg-gradient-to-r from-red-50 to-red-100/50 border border-red-200/50">
+            <div className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-xl bg-gradient-to-r from-green-50 to-green-100/50 border border-green-200/50">
               <div className="flex-shrink-0 w-6 sm:w-8 text-center font-semibold text-gray-700 text-xs sm:text-sm">
                 {currentUserIndex + 1}
               </div>

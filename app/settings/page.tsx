@@ -335,7 +335,7 @@ export default function SettingsPage() {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs px-2 py-1 bg-red-50 text-[#8B4513] rounded-lg font-medium border border-red-200/50">
+                    <span className="text-xs px-2 py-1 bg-green-50 text-[#8B4513] rounded-lg font-medium border border-green-200/50">
                       {member.role}
                     </span>
                     {memberships.length > 1 && (
@@ -366,7 +366,7 @@ export default function SettingsPage() {
               <p className="text-sm text-gray-600 mb-3">
                 Share this invite code with others to let them join your group:
               </p>
-              <div className="p-4 bg-red-50/50 border border-red-200/50 rounded-xl">
+              <div className="p-4 bg-green-50/50 border border-green-200/50 rounded-xl">
                 <p className="text-center font-mono text-2xl font-bold text-[#8B4513] tracking-wider">
                   {group.invite_code}
                 </p>

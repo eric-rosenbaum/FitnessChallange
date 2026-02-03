@@ -114,19 +114,24 @@ export default function GroupProgressCard({
   // Calculate group cardio total (capped at 100% per person)
   // Group logs by user, calculate each user's total, cap at individual target, then sum
   const userCardioTotals: Record<string, number> = {}
-  logs
-    .filter(log => log.log_type === 'cardio' && log.cardio_amount)
-    .forEach(log => {
-      const userId = log.user_id
-      userCardioTotals[userId] = (userCardioTotals[userId] || 0) + (log.cardio_amount || 0)
-    })
+  const cardioLogs = logs.filter(log => log.log_type === 'cardio' && log.cardio_amount && log.user_id)
+  
+  cardioLogs.forEach(log => {
+    const userId = log.user_id!
+    if (!userCardioTotals[userId]) {
+      userCardioTotals[userId] = 0
+    }
+    userCardioTotals[userId] += log.cardio_amount || 0
+  })
   
   // Cap each user's contribution at their individual target (100%)
   const individualCardioTarget = challenge.cardio_target
-  const cappedUserCardioTotals = Object.values(userCardioTotals).map(total => 
-    Math.min(total, individualCardioTarget)
-  )
-  const groupCardioTotal = cappedUserCardioTotals.reduce((sum, total) => sum + total, 0)
+  const cappedUserCardioTotals: Record<string, number> = {}
+  Object.keys(userCardioTotals).forEach(userId => {
+    cappedUserCardioTotals[userId] = Math.min(userCardioTotals[userId], individualCardioTarget)
+  })
+  
+  const groupCardioTotal = Object.values(cappedUserCardioTotals).reduce((sum, total) => sum + total, 0)
   
   // Group cardio target = individual target * number of members
   const groupCardioTarget = challenge.cardio_target * numberOfMembers
@@ -137,19 +142,29 @@ export default function GroupProgressCard({
   exercises.forEach(exercise => {
     // Group logs by user for this exercise
     const userExerciseTotals: Record<string, number> = {}
-    logs
-      .filter(log => log.log_type === 'strength' && log.exercise_id === exercise.id && log.strength_reps)
-      .forEach(log => {
-        const userId = log.user_id
-        userExerciseTotals[userId] = (userExerciseTotals[userId] || 0) + (log.strength_reps || 0)
-      })
+    const strengthLogs = logs.filter(log => 
+      log.log_type === 'strength' && 
+      log.exercise_id === exercise.id && 
+      log.strength_reps && 
+      log.user_id
+    )
+    
+    strengthLogs.forEach(log => {
+      const userId = log.user_id!
+      if (!userExerciseTotals[userId]) {
+        userExerciseTotals[userId] = 0
+      }
+      userExerciseTotals[userId] += log.strength_reps || 0
+    })
     
     // Cap each user's contribution at their individual target (100%)
     const individualExerciseTarget = exercise.target_reps
-    const cappedUserTotals = Object.values(userExerciseTotals).map(total => 
-      Math.min(total, individualExerciseTarget)
-    )
-    groupExerciseTotals[exercise.id] = cappedUserTotals.reduce((sum, total) => sum + total, 0)
+    const cappedUserTotals: Record<string, number> = {}
+    Object.keys(userExerciseTotals).forEach(userId => {
+      cappedUserTotals[userId] = Math.min(userExerciseTotals[userId], individualExerciseTarget)
+    })
+    
+    groupExerciseTotals[exercise.id] = Object.values(cappedUserTotals).reduce((sum, total) => sum + total, 0)
   })
   
   // Calculate strength overall progress (average across exercises)
@@ -166,13 +181,15 @@ export default function GroupProgressCard({
   // Debug logging (after all calculations)
   console.log('[GroupProgressCard]', {
     numberOfMembers,
+    totalLogs: logs.length,
+    uniqueUsers: Array.from(new Set(logs.filter(log => log.user_id).map(log => log.user_id))),
+    userCardioTotals,
+    cappedUserCardioTotals,
     groupCardioTotal,
     individualTarget: challenge.cardio_target,
     groupCardioTarget,
     groupCardioProgress,
-    totalLogs: logs.length,
     cardioLogs: logs.filter(log => log.log_type === 'cardio').length,
-    uniqueUsers: new Set(logs.map(log => log.user_id)).size,
     exerciseTotals: groupExerciseTotals,
     groupStrengthProgress,
   })

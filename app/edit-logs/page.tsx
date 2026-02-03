@@ -239,7 +239,7 @@ function EditLogsPageContent() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleStartEdit(log)}
-                          className="px-3 py-1.5 text-[#8B4513] hover:text-[#6B4423] hover:bg-red-50/50 text-sm rounded-lg font-medium transition-colors"
+                          className="px-3 py-1.5 text-[#8B4513] hover:text-[#6B4423] hover:bg-green-50/50 text-sm rounded-lg font-medium transition-colors"
                         >
                           Edit
                         </button>

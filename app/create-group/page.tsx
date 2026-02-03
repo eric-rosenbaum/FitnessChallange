@@ -106,7 +106,7 @@ export default function CreateGroupPage() {
               <button
                 type="button"
                 onClick={generateInviteCode}
-                className="px-4 py-2 border-2 border-[#8B4513] text-[#8B4513] rounded-xl hover:bg-red-50 font-medium transition-colors"
+                className="px-4 py-2 border-2 border-[#8B4513] text-[#8B4513] rounded-xl hover:bg-green-50 font-medium transition-colors"
               >
                 Generate
               </button>

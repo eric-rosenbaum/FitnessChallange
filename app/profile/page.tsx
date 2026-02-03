@@ -105,7 +105,7 @@ export default function ProfilePage() {
               </p>
               <button
                 onClick={handleResetPassword}
-                className="w-full px-4 py-3 border-2 border-[#8B4513] text-[#8B4513] rounded-xl hover:bg-red-50 transition-all font-medium"
+                className="w-full px-4 py-3 border-2 border-[#8B4513] text-[#8B4513] rounded-xl hover:bg-green-50 transition-all font-medium"
               >
                 Reset Password
               </button>
