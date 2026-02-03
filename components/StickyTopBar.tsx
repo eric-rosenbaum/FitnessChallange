@@ -90,11 +90,10 @@ export default function StickyTopBar({ isAdmin, hostName, challengeCreatedBy }: 
             {supabase && (
               <button
                 onClick={handleLogout}
-                className="p-1.5 sm:p-2 text-gray-600 hover:text-gray-700 hover:bg-white/50 rounded-xl transition-colors text-xs sm:text-sm font-medium whitespace-nowrap"
+                className="p-1.5 sm:p-2 text-gray-600 hover:text-gray-700 hover:bg-white/50 rounded-xl transition-colors text-[10px] sm:text-sm font-medium whitespace-nowrap"
                 aria-label="Sign out"
               >
-                <span className="hidden sm:inline">Sign Out</span>
-                <span className="sm:hidden">Out</span>
+                Sign Out
               </button>
             )}
           </div>

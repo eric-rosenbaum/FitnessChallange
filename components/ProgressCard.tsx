@@ -59,9 +59,15 @@ function DonutChart({ progress, size = 80, strokeWidth = 8, color = 'blue' }: Do
         />
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-sm sm:text-lg font-bold text-gray-800">
-          {Math.round(progress * 100)}%
-        </span>
+        {progress >= 1.0 ? (
+          <span className="text-5xl sm:text-6.5xl text-black font-bold">
+            ✓
+          </span>
+        ) : (
+          <span className="text-sm sm:text-lg font-bold text-gray-800">
+            {Math.round(progress * 100)}%
+          </span>
+        )}
       </div>
     </div>
   )

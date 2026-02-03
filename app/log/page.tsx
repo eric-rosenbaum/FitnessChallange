@@ -54,14 +54,12 @@ function LogPageContent() {
   const [exerciseId, setExerciseId] = useState('')
   const [strengthReps, setStrengthReps] = useState('')
   const [loggedDate, setLoggedDate] = useState(new Date().toISOString().split('T')[0])
-  const [note, setNote] = useState('')
   
   // Initialize form if editing
   useEffect(() => {
     if (editingLog) {
       setActiveTab(editingLog.log_type)
       setLoggedDate(editingLog.logged_at)
-      setNote(editingLog.note || '')
       
       if (editingLog.log_type === 'cardio') {
         setCardioActivity(editingLog.cardio_activity || 'run')
@@ -84,7 +82,6 @@ function LogPageContent() {
         // Update existing log
         await updateWorkoutLog(editingLog.id, {
           logged_at: loggedDate,
-          note: note || undefined,
           ...(activeTab === 'cardio' ? {
             cardio_activity: cardioActivity,
             cardio_amount: parseFloat(cardioAmount),
@@ -108,7 +105,6 @@ function LogPageContent() {
             exercise_id: exerciseId,
             strength_reps: parseInt(strengthReps),
           }),
-          note: note || undefined,
         })
       }
       
@@ -149,7 +145,7 @@ function LogPageContent() {
   
   return (
     <div className="min-h-screen">
-      <div className="max-w-2xl mx-auto px-4 py-6">
+      <div className="max-w-2xl mx-auto px-3 sm:px-4 py-6">
         <div className="mb-6">
           <Link href="/" className="text-emerald-600 hover:text-emerald-700 hover:underline text-sm font-medium">← Back to home</Link>
           <h1 className="text-2xl font-bold text-gray-800 mt-2 tracking-tight">
@@ -157,7 +153,7 @@ function LogPageContent() {
           </h1>
         </div>
         
-        <div className="glass-card rounded-2xl soft-shadow-lg border border-white/50">
+        <div className="glass-card rounded-2xl soft-shadow-lg border border-white/50 overflow-hidden">
           {/* Tabs */}
           <div className="flex border-b border-gray-200/50">
             <button
@@ -183,7 +179,7 @@ function LogPageContent() {
           </div>
           
           {/* Form */}
-          <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 overflow-hidden">
             {activeTab === 'cardio' ? (
               <>
                 <div>
@@ -193,7 +189,8 @@ function LogPageContent() {
                   <select
                     value={cardioActivity}
                     onChange={(e) => setCardioActivity(e.target.value as CardioActivity)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50 text-sm"
+                    style={{ height: '2.5rem', lineHeight: '1.5rem' }}
                     required
                   >
                     <option value="run">Run</option>
@@ -212,7 +209,8 @@ function LogPageContent() {
                     min="0"
                     value={cardioAmount}
                     onChange={(e) => setCardioAmount(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50 text-sm"
+                    style={{ height: '2.5rem', lineHeight: '1.5rem' }}
                     required
                   />
                 </div>
@@ -226,7 +224,8 @@ function LogPageContent() {
                   <select
                     value={exerciseId}
                     onChange={(e) => setExerciseId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50 text-sm"
+                    style={{ height: '2.5rem', lineHeight: '1.5rem' }}
                     required
                   >
                     <option value="">Select exercise</option>
@@ -246,14 +245,15 @@ function LogPageContent() {
                     min="1"
                     value={strengthReps}
                     onChange={(e) => setStrengthReps(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50 text-sm"
+                    style={{ height: '2.5rem', lineHeight: '1.5rem' }}
                     required
                   />
                 </div>
               </>
             )}
             
-            <div>
+            <div className="w-full overflow-hidden">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Date
               </label>
@@ -261,21 +261,21 @@ function LogPageContent() {
                 type="date"
                 value={loggedDate}
                 onChange={(e) => setLoggedDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
+                className="w-full min-w-0 px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50 text-sm"
+                style={{ 
+                  fontSize: '14px',
+                  lineHeight: '1.5rem',
+                  height: '2.5rem',
+                  maxHeight: '2.5rem',
+                  boxSizing: 'border-box',
+                  width: '100%',
+                  maxWidth: '100%',
+                  WebkitAppearance: 'none',
+                  MozAppearance: 'textfield',
+                  paddingLeft: '12px',
+                  paddingRight: '12px'
+                }}
                 required
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Note (optional)
-              </label>
-              <textarea
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
-                placeholder="Add a note about your workout..."
               />
             </div>
             
