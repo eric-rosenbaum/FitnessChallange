@@ -6,7 +6,10 @@ export const metadata: Metadata = {
   title: 'FriendsFitnessChallenge',
   description: 'Weekly fitness challenges for your group',
   icons: {
-    icon: '/icon.ico',
+    icon: [
+      { url: '/icon.ico', sizes: 'any' },
+      { url: '/favicon.ico', sizes: 'any' },
+    ],
     shortcut: '/icon.ico',
     apple: '/icon.ico',
   },

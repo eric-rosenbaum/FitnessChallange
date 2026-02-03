@@ -157,7 +157,7 @@ function LoginPageContent() {
           {message && (
             <div className={`text-sm p-3 rounded-xl ${
               message.includes('Account created') || message.includes('check your email')
-                ? 'bg-red-50 text-[#6B4423] border border-red-200' 
+                ? 'bg-green-50 text-green-700 border border-green-200' 
                 : 'bg-red-50 text-red-700 border border-red-200'
             }`}>
               {message}
