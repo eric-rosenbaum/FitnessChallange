@@ -251,6 +251,58 @@ export async function createWeekAssignment(
   return data
 }
 
+export async function updateWeekAssignment(
+  assignmentId: string,
+  hostUserId: string,
+  assignedBy: string
+): Promise<WeekAssignment> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('week_assignments')
+    .update({
+      host_user_id: hostUserId,
+      assigned_by: assignedBy,
+    })
+    .eq('id', assignmentId)
+    .select()
+    .single()
+  
+  if (error) throw error
+  return data
+}
+
+export async function getUpcomingAssignments(groupId: string, excludeCurrentAssignmentId?: string): Promise<WeekAssignment[]> {
+  const supabase = createClient()
+  const today = new Date().toISOString().split('T')[0]
+  
+  let query = supabase
+    .from('week_assignments')
+    .select('*')
+    .eq('group_id', groupId)
+    .gte('start_date', today) // Only future assignments
+    .order('start_date', { ascending: true })
+  
+  // Exclude current assignment if provided
+  if (excludeCurrentAssignmentId) {
+    query = query.neq('id', excludeCurrentAssignmentId)
+  }
+  
+  const { data, error } = await query
+  
+  if (error) throw error
+  return data || []
+}
+
+export async function deleteWeekAssignment(assignmentId: string): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from('week_assignments')
+    .delete()
+    .eq('id', assignmentId)
+  
+  if (error) throw error
+}
+
 // Week Challenges
 export async function createWeekChallenge(
   groupId: string,

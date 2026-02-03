@@ -8,6 +8,7 @@ interface GroupProgressCardProps {
   weekStartDate: string
   weekEndDate: string
   logs: WorkoutLog[]
+  numberOfMembers: number
 }
 
 interface DonutChartProps {
@@ -68,6 +69,7 @@ export default function GroupProgressCard({
   weekStartDate,
   weekEndDate,
   logs,
+  numberOfMembers,
 }: GroupProgressCardProps) {
   const weekLabel = new Date(weekStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   
@@ -83,7 +85,9 @@ export default function GroupProgressCard({
     .filter(log => log.log_type === 'cardio' && log.cardio_amount)
     .reduce((sum, log) => sum + (log.cardio_amount || 0), 0)
   
-  const groupCardioProgress = Math.min(groupCardioTotal / challenge.cardio_target, 1)
+  // Group cardio target = individual target * number of members
+  const groupCardioTarget = challenge.cardio_target * numberOfMembers
+  const groupCardioProgress = groupCardioTarget > 0 ? Math.min(groupCardioTotal / groupCardioTarget, 1) : 0
   
   // Calculate group exercise totals (sum of all users' reps per exercise)
   const groupExerciseTotals: Record<string, number> = {}
@@ -95,13 +99,29 @@ export default function GroupProgressCard({
   })
   
   // Calculate strength overall progress (average across exercises)
+  // Group target for each exercise = individual target * number of members
   const strengthProgresses = exercises.map(exercise => {
     const total = groupExerciseTotals[exercise.id] || 0
-    return Math.min(total / exercise.target_reps, 1)
+    const groupTarget = exercise.target_reps * numberOfMembers
+    return groupTarget > 0 ? Math.min(total / groupTarget, 1) : 0
   })
   const groupStrengthProgress = strengthProgresses.length > 0
     ? strengthProgresses.reduce((sum, p) => sum + p, 0) / strengthProgresses.length
     : 0
+  
+  // Debug logging (after all calculations)
+  console.log('[GroupProgressCard]', {
+    numberOfMembers,
+    groupCardioTotal,
+    individualTarget: challenge.cardio_target,
+    groupCardioTarget,
+    groupCardioProgress,
+    totalLogs: logs.length,
+    cardioLogs: logs.filter(log => log.log_type === 'cardio').length,
+    uniqueUsers: new Set(logs.map(log => log.user_id)).size,
+    exerciseTotals: groupExerciseTotals,
+    groupStrengthProgress,
+  })
   
   // Calculate cardio breakdown by activity type
   const cardioBreakdown: Record<string, number> = {}
@@ -136,7 +156,7 @@ export default function GroupProgressCard({
             color="green"
           />
           <div className="text-sm font-medium text-gray-800 mt-2 text-center mb-3">
-            {groupCardioTotal.toFixed(1)} / {challenge.cardio_target} {challenge.cardio_metric}
+            {groupCardioTotal.toFixed(1)} / {groupCardioTarget.toFixed(1)} {challenge.cardio_metric}
           </div>
           {/* Cardio Breakdown */}
           <div className="w-full space-y-1 text-center">
@@ -164,9 +184,10 @@ export default function GroupProgressCard({
           <div className="w-full space-y-1 text-center">
             {exercises.map(exercise => {
               const total = groupExerciseTotals[exercise.id] || 0
+              const groupTarget = exercise.target_reps * numberOfMembers
               return (
                 <div key={exercise.id} className="text-xs text-gray-600 font-medium">
-                  {exercise.name}: {Math.round(total)} / {exercise.target_reps}
+                  {exercise.name}: {Math.round(total)} / {Math.round(groupTarget)}
                 </div>
               )
             })}

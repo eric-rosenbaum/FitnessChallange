@@ -12,9 +12,12 @@ import {
   updateGroupName,
   removeMember,
   createWeekAssignment,
+  updateWeekAssignment,
   getActiveWeek,
+  getUpcomingAssignments,
+  deleteWeekAssignment,
 } from '@/lib/db/queries'
-import type { GroupMembership, ActiveWeek } from '@/types'
+import type { GroupMembership, ActiveWeek, WeekAssignment } from '@/types'
 
 export default function SettingsPage() {
   const router = useRouter()
@@ -33,14 +36,30 @@ export default function SettingsPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   
-  const [hostUserId, setHostUserId] = useState('')
-  const [assignmentStartDate, setAssignmentStartDate] = useState('')
-  const [assignmentEndDate, setAssignmentEndDate] = useState('')
-  const [isAssigning, setIsAssigning] = useState(false)
-  
-  const [newMemberEmail, setNewMemberEmail] = useState('')
-  const [isAddingMember, setIsAddingMember] = useState(false)
   const [activeWeek, setActiveWeek] = useState<ActiveWeek | null>(null)
+  const [upcomingAssignments, setUpcomingAssignments] = useState<WeekAssignment[]>([])
+  
+  // Form state for upcoming assignments
+  const [newAssignmentHost, setNewAssignmentHost] = useState('')
+  const [newAssignmentStartDate, setNewAssignmentStartDate] = useState(() => {
+    const nextWeek = new Date()
+    nextWeek.setDate(nextWeek.getDate() + 7)
+    return nextWeek.toISOString().split('T')[0]
+  })
+  const [newAssignmentEndDate, setNewAssignmentEndDate] = useState(() => {
+    const nextWeek = new Date()
+    nextWeek.setDate(nextWeek.getDate() + 7)
+    const endWeek = new Date(nextWeek)
+    endWeek.setDate(endWeek.getDate() + 6)
+    return endWeek.toISOString().split('T')[0]
+  })
+  const [isAddingAssignment, setIsAddingAssignment] = useState(false)
+  
+  // Form state for changing current host
+  const [editingCurrentHost, setEditingCurrentHost] = useState(false)
+  const [newCurrentHost, setNewCurrentHost] = useState('')
+  const [isUpdatingHost, setIsUpdatingHost] = useState(false)
+  const [deletingAssignmentId, setDeletingAssignmentId] = useState<string | null>(null)
   
   const currentUserMembership = memberships.find(m => m.user_id === user?.id)
   const isAdmin = currentUserMembership?.role === 'admin'
@@ -64,18 +83,16 @@ export default function SettingsPage() {
       getActiveWeek(group.id).then((week) => {
         setActiveWeek(week)
         if (week?.week_assignment) {
-          setHostUserId(week.week_assignment.host_user_id)
-          setAssignmentStartDate(week.week_assignment.start_date)
-          setAssignmentEndDate(week.week_assignment.end_date)
-        } else {
-          // Set default dates (next week)
-          const nextWeek = new Date()
-          nextWeek.setDate(nextWeek.getDate() + 7)
-          const endWeek = new Date(nextWeek)
-          endWeek.setDate(endWeek.getDate() + 6)
-          setAssignmentStartDate(nextWeek.toISOString().split('T')[0])
-          setAssignmentEndDate(endWeek.toISOString().split('T')[0])
+          setNewCurrentHost(week.week_assignment.host_user_id)
         }
+      })
+      
+      // Fetch upcoming assignments (exclude current if exists)
+      getActiveWeek(group.id).then((week) => {
+        const currentAssignmentId = week?.week_assignment?.id
+        getUpcomingAssignments(group.id, currentAssignmentId).then((assignments) => {
+          setUpcomingAssignments(assignments)
+        })
       })
     }
   }, [group])
@@ -149,61 +166,109 @@ export default function SettingsPage() {
     }
   }
   
-  const handleAddMember = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!group || !newMemberEmail.trim()) return
+  
+  const handleUpdateCurrentHost = async () => {
+    if (!group || !user || !isAdmin || !activeWeek?.week_assignment) return
     
-    setIsAddingMember(true)
+    if (!newCurrentHost) {
+      alert('Please select a host')
+      return
+    }
+    
+    setIsUpdatingHost(true)
     try {
-      // For now, we'll use invite codes - email invites would require additional setup
-      alert('To add members, share your group invite code: ' + group.invite_code)
-      setNewMemberEmail('')
+      await updateWeekAssignment(
+        activeWeek.week_assignment.id,
+        newCurrentHost,
+        user.id
+      )
+      
+      // Refresh data immediately
+      const updatedWeek = await getActiveWeek(group.id)
+      setActiveWeek(updatedWeek)
+      setEditingCurrentHost(false)
+      setNewCurrentHost(updatedWeek?.week_assignment?.host_user_id || '')
+      
+      alert('Host updated!')
     } catch (error: any) {
-      alert('Error: ' + (error.message || 'Failed to add member'))
-    } finally {
-      setIsAddingMember(false)
+      console.error('[Settings] Error updating host:', error)
+      alert('Error: ' + (error.message || 'Failed to update host'))
+      setIsUpdatingHost(false)
     }
   }
   
-  const handleAssignHost = async (e: React.FormEvent) => {
+  const handleAddUpcomingAssignment = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!group || !user || !isAdmin) return
     
-    if (!hostUserId || !assignmentStartDate || !assignmentEndDate) {
+    if (!newAssignmentHost || !newAssignmentStartDate || !newAssignmentEndDate) {
       alert('Please fill in all fields')
       return
     }
     
-    setIsAssigning(true)
+    setIsAddingAssignment(true)
     try {
-      console.log('[Settings] Creating week assignment:', {
-        groupId: group.id,
-        startDate: assignmentStartDate,
-        endDate: assignmentEndDate,
-        hostUserId,
-        assignedBy: user.id
-      })
-      
-      const assignment = await createWeekAssignment(
+      await createWeekAssignment(
         group.id,
-        assignmentStartDate,
-        assignmentEndDate,
-        hostUserId,
+        newAssignmentStartDate,
+        newAssignmentEndDate,
+        newAssignmentHost,
         user.id
       )
       
-      console.log('[Settings] Week assignment created:', assignment)
-      
-      // Refresh the active week data
+      // Refresh active week (in case the new assignment is the current one)
       const updatedWeek = await getActiveWeek(group.id)
       setActiveWeek(updatedWeek)
       
-      alert('Weekly host assigned!')
-      router.push('/?refresh=true')
+      // Refresh upcoming assignments (exclude current)
+      const currentAssignmentId = updatedWeek?.week_assignment?.id
+      const updated = await getUpcomingAssignments(group.id, currentAssignmentId)
+      setUpcomingAssignments(updated)
+      
+      // Reset form
+      setNewAssignmentHost('')
+      const nextWeek = new Date()
+      nextWeek.setDate(nextWeek.getDate() + 7)
+      const endWeek = new Date(nextWeek)
+      endWeek.setDate(endWeek.getDate() + 6)
+      setNewAssignmentStartDate(nextWeek.toISOString().split('T')[0])
+      setNewAssignmentEndDate(endWeek.toISOString().split('T')[0])
+      
+      alert('Assignment added!')
+      setIsAddingAssignment(false)
     } catch (error: any) {
-      console.error('[Settings] Error creating week assignment:', error)
-      alert('Error: ' + (error.message || 'Failed to assign host'))
-      setIsAssigning(false)
+      console.error('[Settings] Error adding upcoming assignment:', error)
+      alert('Error: ' + (error.message || 'Failed to add assignment'))
+      setIsAddingAssignment(false)
+    }
+  }
+  
+  const handleDeleteAssignment = async (assignmentId: string) => {
+    if (!confirm('Are you sure you want to delete this upcoming assignment?')) {
+      return
+    }
+    
+    if (!group) return
+    
+    setDeletingAssignmentId(assignmentId)
+    try {
+      await deleteWeekAssignment(assignmentId)
+      
+      // Refresh active week (in case we deleted the current one)
+      const updatedWeek = await getActiveWeek(group.id)
+      setActiveWeek(updatedWeek)
+      
+      // Refresh upcoming assignments (exclude current)
+      const currentAssignmentId = updatedWeek?.week_assignment?.id
+      const updated = await getUpcomingAssignments(group.id, currentAssignmentId)
+      setUpcomingAssignments(updated)
+      
+      alert('Assignment deleted!')
+    } catch (error: any) {
+      console.error('[Settings] Error deleting assignment:', error)
+      alert('Error: ' + (error.message || 'Failed to delete assignment'))
+    } finally {
+      setDeletingAssignmentId(null)
     }
   }
   
@@ -298,115 +363,186 @@ export default function SettingsPage() {
             <div className="pt-4 border-t border-gray-200/50">
               <h3 className="text-lg font-semibold text-gray-800 mb-3 tracking-tight">Add Member</h3>
               <p className="text-sm text-gray-600 mb-3">
-                Share this invite code: <span className="font-mono font-bold text-emerald-600">{group.invite_code}</span>
+                Share this invite code with others to let them join your group:
               </p>
-              <form onSubmit={handleAddMember} className="flex gap-3">
-                <input
-                  type="email"
-                  value={newMemberEmail}
-                  onChange={(e) => setNewMemberEmail(e.target.value)}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
-                  placeholder="Email (invite code shown above)"
-                  disabled
-                />
-                <button
-                  type="submit"
-                  disabled={isAddingMember}
-                  className="px-4 py-2 gradient-green-translucent text-white rounded-xl hover:opacity-90 disabled:opacity-50 soft-shadow font-medium transition-all"
-                >
-                  {isAddingMember ? 'Adding...' : 'Add'}
-                </button>
-              </form>
-              <p className="text-xs text-gray-500 mt-2">
-                Note: Members should use the invite code above to join. Email invites coming soon.
+              <div className="p-4 bg-emerald-50/50 border border-emerald-200/50 rounded-xl">
+                <p className="text-center font-mono text-2xl font-bold text-emerald-700 tracking-wider">
+                  {group.invite_code}
+                </p>
+              </div>
+              <p className="text-xs text-gray-500 mt-3 text-center">
+                Members can use this code on the join page to join your group
               </p>
             </div>
           </div>
           
-          {/* Assign Weekly Host (Admin Only) - Hide if there's already an active week */}
-          {!hasActiveWeek && (
+          {/* Current Week Assignment (Admin Only) */}
+          {hasActiveWeek && activeWeek?.week_assignment && (
             <div className="glass-card rounded-2xl soft-shadow-lg p-6 border border-white/50">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4 tracking-tight">Assign Weekly Host</h2>
-              {isAdmin ? (
-              <form onSubmit={handleAssignHost} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Host
-                  </label>
-                  <select
-                    value={hostUserId}
-                    onChange={(e) => setHostUserId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
-                    required
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-800 tracking-tight">Current Week Assignment</h2>
+                {isAdmin && (
+                  <button
+                    onClick={() => {
+                      setEditingCurrentHost(!editingCurrentHost)
+                      setNewCurrentHost(activeWeek.week_assignment.host_user_id)
+                    }}
+                    className="text-sm text-emerald-600 hover:text-emerald-700 hover:underline font-medium"
                   >
-                    <option value="">Select a member</option>
-                    {membersWithProfiles.map((member) => (
-                      <option key={member.user_id} value={member.user_id}>
-                        {member.profile?.display_name || 'Unknown'} {member.user_id === user?.id && '(You)'}
-                      </option>
-                    ))}
-                  </select>
+                    {editingCurrentHost ? 'Cancel' : 'Change Host'}
+                  </button>
+                )}
+              </div>
+              
+              {!editingCurrentHost ? (
+                <div className="space-y-2">
+                  <p className="text-gray-700">
+                    <span className="font-medium">Host:</span> {activeWeek.host_name || 'Unknown'}
+                  </p>
+                  <p className="text-gray-700">
+                    <span className="font-medium">Week:</span> {new Date(activeWeek.week_assignment.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(activeWeek.week_assignment.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </p>
+                  {activeWeek.challenge ? (
+                    <p className="text-emerald-600 font-medium">
+                      ✓ Challenge has been created
+                    </p>
+                  ) : (
+                    <p className="text-amber-600 font-medium">
+                      ⏳ Waiting for host to create challenge
+                    </p>
+                  )}
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Start Date
-                    </label>
-                    <input
-                      type="date"
-                      value={assignmentStartDate}
-                      onChange={(e) => setAssignmentStartDate(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      End Date
-                    </label>
-                    <input
-                      type="date"
-                      value={assignmentEndDate}
-                      onChange={(e) => setAssignmentEndDate(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
-                      required
-                    />
-                  </div>
-                </div>
-                <button
-                  type="submit"
-                  disabled={isAssigning}
-                  className="w-full px-4 py-3 gradient-green-translucent text-white rounded-xl hover:opacity-90 disabled:opacity-50 soft-shadow font-medium transition-all"
-                >
-                  {isAssigning ? 'Assigning...' : 'Assign Host'}
-                </button>
-              </form>
               ) : (
-                <p className="text-gray-700 font-medium text-center">Only group admins can assign weekly hosts.</p>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      New Host
+                    </label>
+                    <select
+                      value={newCurrentHost}
+                      onChange={(e) => setNewCurrentHost(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
+                      required
+                    >
+                      <option value="">Select a member</option>
+                      {membersWithProfiles.map((member) => (
+                        <option key={member.user_id} value={member.user_id}>
+                          {member.profile?.display_name || 'Unknown'} {member.user_id === user?.id && '(You)'}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setEditingCurrentHost(false)}
+                      className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleUpdateCurrentHost}
+                      disabled={isUpdatingHost || !newCurrentHost}
+                      className="flex-1 px-4 py-3 gradient-green-translucent text-white rounded-xl hover:opacity-90 disabled:opacity-50 soft-shadow font-medium transition-all"
+                    >
+                      {isUpdatingHost ? 'Updating...' : 'Update Host'}
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           )}
           
-          {/* Show current week assignment if it exists */}
-          {hasActiveWeek && activeWeek?.week_assignment && (
+          {/* Upcoming Assignments (Admin Only) */}
+          {isAdmin && (
             <div className="glass-card rounded-2xl soft-shadow-lg p-6 border border-white/50">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4 tracking-tight">Current Week Assignment</h2>
-              <div className="space-y-2">
-                <p className="text-gray-700">
-                  <span className="font-medium">Host:</span> {activeWeek.host_name || 'Unknown'}
-                </p>
-                <p className="text-gray-700">
-                  <span className="font-medium">Week:</span> {new Date(activeWeek.week_assignment.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(activeWeek.week_assignment.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                </p>
-                {activeWeek.challenge ? (
-                  <p className="text-emerald-600 font-medium">
-                    ✓ Challenge has been created
-                  </p>
-                ) : (
-                  <p className="text-amber-600 font-medium">
-                    ⏳ Waiting for host to create challenge
-                  </p>
-                )}
+              <h2 className="text-xl font-semibold text-gray-800 mb-4 tracking-tight">Upcoming Assignments</h2>
+              
+              {/* List of upcoming assignments */}
+              {upcomingAssignments.length > 0 && (
+                <div className="space-y-3 mb-6">
+                  {upcomingAssignments.map((assignment) => {
+                    const hostMember = membersWithProfiles.find(m => m.user_id === assignment.host_user_id)
+                    return (
+                      <div key={assignment.id} className="p-3 bg-gray-50/50 rounded-xl border border-gray-200/50">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <p className="font-medium text-gray-800">
+                              {hostMember?.profile?.display_name || 'Unknown'}
+                            </p>
+                            <p className="text-sm text-gray-600">
+                              {new Date(assignment.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(assignment.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => handleDeleteAssignment(assignment.id)}
+                            disabled={deletingAssignmentId === assignment.id}
+                            className="ml-3 px-3 py-1.5 text-red-600 hover:text-red-700 hover:bg-red-50/50 text-sm rounded-lg font-medium transition-colors disabled:opacity-50"
+                          >
+                            {deletingAssignmentId === assignment.id ? 'Deleting...' : 'Delete'}
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+              
+              {/* Form to add new upcoming assignment */}
+              <div className="pt-4 border-t border-gray-200/50">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4 tracking-tight">Add Upcoming Assignment</h3>
+                <form onSubmit={handleAddUpcomingAssignment} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Host
+                    </label>
+                    <select
+                      value={newAssignmentHost}
+                      onChange={(e) => setNewAssignmentHost(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
+                      required
+                    >
+                      <option value="">Select a member</option>
+                      {membersWithProfiles.map((member) => (
+                        <option key={member.user_id} value={member.user_id}>
+                          {member.profile?.display_name || 'Unknown'} {member.user_id === user?.id && '(You)'}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Start Date
+                      </label>
+                      <input
+                        type="date"
+                        value={newAssignmentStartDate}
+                        onChange={(e) => setNewAssignmentStartDate(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        End Date
+                      </label>
+                      <input
+                        type="date"
+                        value={newAssignmentEndDate}
+                        onChange={(e) => setNewAssignmentEndDate(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isAddingAssignment}
+                    className="w-full px-4 py-3 gradient-green-translucent text-white rounded-xl hover:opacity-90 disabled:opacity-50 soft-shadow font-medium transition-all"
+                  >
+                    {isAddingAssignment ? 'Adding...' : 'Add Assignment'}
+                  </button>
+                </form>
               </div>
             </div>
           )}

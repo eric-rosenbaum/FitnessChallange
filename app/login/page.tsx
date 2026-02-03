@@ -2,58 +2,86 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
 function LoginPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [isSignUp, setIsSignUp] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [message, setMessage] = useState('')
   
   const supabase = createClient()
   
-  // Check for error in URL (e.g., expired link)
+  // Check for error in URL
   useEffect(() => {
     const error = searchParams.get('error')
     const errorDescription = searchParams.get('error_description')
     
-    if (error === 'access_denied' || error === 'otp_expired') {
-      setMessage('The magic link has expired. Please request a new one below.')
-    } else if (error) {
+    if (error) {
       setMessage(errorDescription?.replace(/\+/g, ' ') || 'An error occurred. Please try again.')
     }
   }, [searchParams])
   
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setMessage('')
     
-    console.log('[LOGIN] Requesting OTP for:', email)
-    console.log('[LOGIN] Current cookies:', document.cookie)
-    
-    const { error, data } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
-    })
-    
-    console.log('[LOGIN] OTP response - error:', error?.message, 'data:', data)
-    console.log('[LOGIN] Cookies after OTP request:', document.cookie)
-    
-    // Check for PKCE cookies
-    const pkceCookies = document.cookie.split('; ').filter(c => 
-      c.includes('code') || c.includes('verifier') || c.includes('pkce')
-    )
-    console.log('[LOGIN] PKCE-related cookies:', pkceCookies)
-    
-    if (error) {
-      setMessage(error.message)
+    try {
+      if (isSignUp) {
+        // Sign up
+        const { error, data } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+          },
+        })
+        
+        if (error) {
+          setMessage(error.message)
+          setIsLoading(false)
+        } else {
+          // Check if email confirmation is required
+          // If user is already signed in, email confirmation is disabled
+          if (data.user && data.session) {
+            // Email confirmation is disabled - user can sign in immediately
+            // Redirect to onboarding to set display name
+            setMessage('Account created successfully! Redirecting to set up your profile...')
+            setTimeout(() => {
+              router.push('/onboarding')
+            }, 1000)
+          } else if (data.user && !data.session) {
+            // Email confirmation is required
+            setMessage('Account created! Please check your email (including spam folder) to verify your account. After verification, you\'ll be prompted to set up your profile.')
+          } else {
+            // Fallback message
+            setMessage('Account created! Please check your email to verify your account.')
+          }
+        }
+      } else {
+        // Sign in
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        })
+        
+        if (error) {
+          setMessage(error.message)
+          setIsLoading(false)
+        } else {
+          // Success - redirect will happen automatically via middleware
+          router.push('/')
+          router.refresh()
+        }
+      }
+    } catch (err: any) {
+      setMessage(err.message || 'An unexpected error occurred')
       setIsLoading(false)
-    } else {
-      setMessage('Check your email for the login link! The link will expire in 1 hour.')
     }
   }
   
@@ -61,10 +89,42 @@ function LoginPageContent() {
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="glass-card rounded-2xl soft-shadow-lg p-8 w-full max-w-md border border-white/50">
         <h1 className="text-2xl font-bold text-gray-800 mb-6 tracking-tight text-center">
-          Fitness Challenge
+          FriendsFitnessChallenge
         </h1>
         
-        <form onSubmit={handleLogin} className="space-y-4">
+        {/* Toggle between Sign In and Sign Up */}
+        <div className="flex gap-2 mb-6">
+          <button
+            type="button"
+            onClick={() => {
+              setIsSignUp(false)
+              setMessage('')
+            }}
+            className={`flex-1 px-4 py-2 rounded-xl font-medium transition-all ${
+              !isSignUp
+                ? 'gradient-green-translucent text-white soft-shadow'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Sign In
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setIsSignUp(true)
+              setMessage('')
+            }}
+            className={`flex-1 px-4 py-2 rounded-xl font-medium transition-all ${
+              isSignUp
+                ? 'gradient-green-translucent text-white soft-shadow'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Sign Up
+          </button>
+        </div>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Email
@@ -79,9 +139,24 @@ function LoginPageContent() {
             />
           </div>
           
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Password
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white/50"
+              placeholder="Enter your password"
+              required
+              minLength={6}
+            />
+          </div>
+          
           {message && (
             <div className={`text-sm p-3 rounded-xl ${
-              message.includes('Check your email') 
+              message.includes('Account created') || message.includes('check your email')
                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
                 : 'bg-red-50 text-red-700 border border-red-200'
             }`}>
@@ -94,15 +169,23 @@ function LoginPageContent() {
             disabled={isLoading}
             className="w-full px-4 py-3 gradient-green-translucent text-white rounded-xl hover:opacity-90 disabled:opacity-50 soft-shadow font-medium transition-all"
           >
-            {isLoading ? 'Sending...' : 'Send Magic Link'}
+            {isLoading 
+              ? (isSignUp ? 'Creating Account...' : 'Signing In...') 
+              : (isSignUp ? 'Sign Up' : 'Sign In')
+            }
           </button>
         </form>
         
-        <p className="text-xs text-gray-500 mt-4 text-center">
-          We&apos;ll send you a magic link to sign in. No password needed!
-          <br />
-          <span className="text-gray-400">Links expire after 1 hour.</span>
-        </p>
+        {!isSignUp && (
+          <div className="mt-4 text-center">
+            <Link
+              href="/reset-password"
+              className="text-sm text-emerald-600 hover:text-emerald-700 hover:underline"
+            >
+              Forgot your password?
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   )

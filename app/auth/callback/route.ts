@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   const errorDescription = requestUrl.searchParams.get('error_description')
   const origin = requestUrl.origin
 
-  // Handle errors (e.g., expired link)
+  // Handle errors
   if (error) {
     const errorMsg = errorDescription?.replace(/\+/g, ' ') || 'Authentication failed'
     return NextResponse.redirect(
@@ -18,32 +18,22 @@ export async function GET(request: NextRequest) {
     )
   }
 
+  // Handle email verification or password reset callback
   if (code) {
     const cookieStore = await cookies()
     
-    // Log cookies for debugging
-    const allCookies = cookieStore.getAll()
-    console.log('[AUTH CALLBACK] Cookies received:', allCookies.map(c => c.name).join(', '))
-    console.log('[AUTH CALLBACK] Looking for PKCE cookies:', allCookies.filter(c => 
-      c.name.includes('code') || c.name.includes('verifier') || c.name.includes('pkce')
-    ).map(c => `${c.name}=${c.value.substring(0, 20)}...`))
-    
-    // Create Supabase client with proper cookie handling for PKCE
+    // Create Supabase client
     const supabase = createServerClient<Database>(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
           getAll() {
-            const cookies = cookieStore.getAll()
-            console.log('[AUTH CALLBACK] getAll() called, returning', cookies.length, 'cookies')
-            return cookies
+            return cookieStore.getAll()
           },
           setAll(cookiesToSet) {
-            console.log('[AUTH CALLBACK] setAll() called with', cookiesToSet.length, 'cookies')
             try {
               cookiesToSet.forEach(({ name, value, options }) => {
-                console.log('[AUTH CALLBACK] Setting cookie:', name, '=', value.substring(0, 20) + '...')
                 cookieStore.set(name, value, options)
               })
             } catch (err) {
@@ -54,20 +44,17 @@ export async function GET(request: NextRequest) {
       }
     )
 
-    console.log('[AUTH CALLBACK] Attempting to exchange code for session...')
-    const { error: exchangeError, data } = await supabase.auth.exchangeCodeForSession(code)
+    // Exchange code for session (for email verification after sign up)
+    const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
     
     if (exchangeError) {
       console.error('[AUTH CALLBACK] Exchange error:', exchangeError.message)
-      // If exchange fails, redirect to login with error
       return NextResponse.redirect(
         `${origin}/login?error=access_denied&error_description=${encodeURIComponent(exchangeError.message)}`
       )
     }
-    
-    console.log('[AUTH CALLBACK] Success! User:', data.user?.email)
   }
 
-  // URL to redirect to after sign in process completes
+  // Redirect to home after successful authentication
   return NextResponse.redirect(`${origin}/`)
 }

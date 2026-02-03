@@ -10,6 +10,7 @@ import Leaderboard from '@/components/Leaderboard'
 import ActivityFeed from '@/components/ActivityFeed'
 import EmptyState from '@/components/EmptyState'
 import HostPromptCard from '@/components/HostPromptCard'
+import WaitingForHostCard from '@/components/WaitingForHostCard'
 import { useApp } from '@/context/AppContext'
 import { useUserGroup } from '@/lib/hooks/useUserGroup'
 import {
@@ -19,6 +20,7 @@ import {
   getActivityFeed,
   getWorkoutLogs,
   getProfile,
+  getGroupMemberships,
 } from '@/lib/db/queries'
 import type { ActiveWeek, UserProgress, ActivityFeedItem } from '@/types'
 import { calculateUserProgress } from '@/lib/dummyData'
@@ -33,6 +35,7 @@ function HomePageContent() {
   const [allProgress, setAllProgress] = useState<UserProgress[]>([])
   const [activityFeed, setActivityFeed] = useState<ActivityFeedItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [numberOfMembers, setNumberOfMembers] = useState(1)
 
   // Redirect if no user
   useEffect(() => {
@@ -44,11 +47,13 @@ function HomePageContent() {
   // Check if user needs onboarding
   useEffect(() => {
     if (user && !authLoading) {
-      // Check if profile has display name
+      // Check if profile has display name (not null, empty, or default "User")
       const checkProfile = async () => {
         try {
           const profile = await getProfile(user.id)
-          if (!profile?.display_name) {
+          const displayName = profile?.display_name
+          // Redirect to onboarding if display_name is missing, empty, or still the default
+          if (!displayName || !displayName.trim() || displayName === 'User') {
             router.push('/onboarding')
           }
         } catch (error) {
@@ -59,6 +64,18 @@ function HomePageContent() {
       checkProfile()
     }
   }, [user, authLoading, router])
+
+  // Fetch number of members (always fetch this when group is available)
+  useEffect(() => {
+    if (group?.id) {
+      getGroupMemberships(group.id).then((memberships) => {
+        console.log('[HomePage] Fetched memberships:', memberships.length, 'members')
+        setNumberOfMembers(memberships.length)
+      }).catch((error) => {
+        console.error('[HomePage] Error fetching memberships:', error)
+      })
+    }
+  }, [group?.id])
 
   // Fetch active week and data
   useEffect(() => {
@@ -92,8 +109,18 @@ function HomePageContent() {
           setChallenge(weekData.challenge)
           setExercises(weekData.exercises)
 
-          // Fetch logs
+          // Fetch logs (all group logs, not just current user)
           await refreshLogs(weekData.challenge.id)
+          
+          // Get all logs for debugging
+          const allLogs = await getWorkoutLogs(weekData.challenge.id)
+          console.log('[HomePage] All logs fetched:', {
+            totalLogs: allLogs.length,
+            cardioLogs: allLogs.filter(log => log.log_type === 'cardio').length,
+            strengthLogs: allLogs.filter(log => log.log_type === 'strength').length,
+            uniqueUsers: Array.from(new Set(allLogs.map(log => log.user_id))),
+            userCount: new Set(allLogs.map(log => log.user_id)).size,
+          })
 
           // Get user progress
           const userProgress = await getUserProgress(user.id, weekData.challenge.id)
@@ -208,6 +235,7 @@ function HomePageContent() {
   const isHost = activeWeek?.week_assignment?.host_user_id === user?.id
   const isAdmin = membership?.role === 'admin'
   const showHostPrompt = isHost && activeWeek?.week_assignment && !activeWeek?.challenge
+  const showWaitingForHost = !isHost && activeWeek?.week_assignment && !activeWeek?.challenge && activeWeek?.host_name
 
   // Empty states - only show if there's no week assignment at all
   // If there's a week assignment but no challenge, show the host prompt or waiting message
@@ -244,6 +272,12 @@ function HomePageContent() {
           {showHostPrompt && activeWeek?.week_assignment && (
             <HostPromptCard weekAssignment={activeWeek.week_assignment} />
           )}
+          {showWaitingForHost && activeWeek?.week_assignment && activeWeek?.host_name && (
+            <WaitingForHostCard 
+              weekAssignment={activeWeek.week_assignment} 
+              hostName={activeWeek.host_name}
+            />
+          )}
           {activeWeek?.challenge && currentUserProgress && (
             <>
               <ProgressCard
@@ -270,6 +304,7 @@ function HomePageContent() {
               weekStartDate={activeWeek.week_assignment.start_date}
               weekEndDate={activeWeek.week_assignment.end_date}
               logs={logs}
+              numberOfMembers={numberOfMembers}
             />
           )}
           {allProgress.length > 0 && activeWeek?.challenge && (
@@ -287,12 +322,22 @@ function HomePageContent() {
         </div>
         
         {/* Desktop: Two-column layout */}
-        <div className="hidden lg:grid lg:grid-cols-2 lg:gap-6">
-          <div className="space-y-4">
-            {showHostPrompt && activeWeek?.week_assignment && (
-              <HostPromptCard weekAssignment={activeWeek.week_assignment} />
-            )}
-            {activeWeek?.challenge && currentUserProgress && (
+        <div className="hidden lg:block space-y-4">
+          {/* Full-width banner cards at top */}
+          {showHostPrompt && activeWeek?.week_assignment && (
+            <HostPromptCard weekAssignment={activeWeek.week_assignment} />
+          )}
+          {showWaitingForHost && activeWeek?.week_assignment && activeWeek?.host_name && (
+            <WaitingForHostCard 
+              weekAssignment={activeWeek.week_assignment} 
+              hostName={activeWeek.host_name}
+            />
+          )}
+          
+          {/* Two-column grid for main content */}
+          <div className="grid lg:grid-cols-2 lg:gap-6">
+            <div className="space-y-4">
+              {activeWeek?.challenge && currentUserProgress && (
               <>
                 <ProgressCard
                   progress={currentUserProgress}
@@ -321,6 +366,7 @@ function HomePageContent() {
                 weekStartDate={activeWeek.week_assignment.start_date}
                 weekEndDate={activeWeek.week_assignment.end_date}
                 logs={logs}
+                numberOfMembers={numberOfMembers}
               />
             )}
             {allProgress.length > 0 && activeWeek?.challenge && (
@@ -332,6 +378,7 @@ function HomePageContent() {
                 challenge={activeWeek.challenge}
               />
             )}
+          </div>
           </div>
         </div>
       </div>

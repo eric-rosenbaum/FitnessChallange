@@ -24,9 +24,13 @@ export default function OnboardingPage() {
           .eq('id', user.id)
           .single()
           .then(({ data }) => {
-            if (data && (data as { display_name?: string }).display_name) {
+            // Check if display_name exists and is not empty/default
+            const displayName = (data as { display_name?: string })?.display_name
+            // Redirect to home if display_name is set and not empty/default
+            if (displayName && displayName.trim() && displayName !== 'User') {
               router.push('/')
             }
+            // If no valid display name, stay on onboarding page
           })
       } else {
         router.push('/login')

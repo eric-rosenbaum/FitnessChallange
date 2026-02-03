@@ -109,9 +109,6 @@ export default function ProfilePage() {
               >
                 Reset Password
               </button>
-              <p className="text-xs text-gray-500 italic">
-                Note: Password reset will be available once authentication is implemented.
-              </p>
             </div>
           </div>
         </div>
