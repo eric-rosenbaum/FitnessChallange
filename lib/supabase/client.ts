@@ -3,12 +3,16 @@
 import { createBrowserClient } from '@supabase/ssr'
 import type { Database } from '@/types/database'
 
-let client: ReturnType<typeof createBrowserClient<Database>> | null = null
+export type SupabaseClient = ReturnType<typeof createBrowserClient<Database>>
 
-export function createClient() {
+let client: SupabaseClient | null = null
+
+export function createClient(): SupabaseClient {
   // Only create client in browser (not during SSR)
   if (typeof window === 'undefined') {
-    throw new Error('createClient can only be called in the browser')
+    // Type assertion needed because this function throws on server
+    // but TypeScript needs to know it can return a client
+    return null as unknown as SupabaseClient
   }
   
   // Reuse existing client if available

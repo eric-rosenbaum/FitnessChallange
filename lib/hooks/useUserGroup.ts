@@ -33,7 +33,7 @@ export function useUserGroup() {
 
       if (membershipData) {
         setMembership(membershipData as GroupMembership)
-        setGroup(membershipData.groups as Group)
+        setGroup((membershipData as any).groups as Group)
       }
       setIsLoading(false)
     }

@@ -103,6 +103,7 @@ export default function SettingsPage() {
     if (!supabase) return
     
     async function fetchProfiles() {
+      if (!supabase) return
       const membersWithProfilesData = await Promise.all(
         memberships.map(async (m) => {
           const { data: profile } = await supabase
