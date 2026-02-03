@@ -5,6 +5,11 @@ import { AppProvider } from '@/context/AppContext'
 export const metadata: Metadata = {
   title: 'FriendsFitnessChallenge',
   description: 'Weekly fitness challenges for your group',
+  icons: {
+    icon: '/icon.ico',
+    shortcut: '/icon.ico',
+    apple: '/icon.ico',
+  },
 }
 
 export default function RootLayout({
