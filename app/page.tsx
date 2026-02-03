@@ -266,9 +266,9 @@ function HomePageContent() {
         challengeCreatedBy={activeWeek?.challenge ? activeWeek.host_name : undefined}
       />
       
-      <div className="max-w-7xl mx-auto px-4 py-6">
+          <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
         {/* Mobile: Vertical stack */}
-        <div className="lg:hidden space-y-4">
+        <div className="lg:hidden space-y-3 sm:space-y-4">
           {showHostPrompt && activeWeek?.week_assignment && (
             <HostPromptCard weekAssignment={activeWeek.week_assignment} />
           )}

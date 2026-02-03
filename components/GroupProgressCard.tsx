@@ -54,11 +54,11 @@ function DonutChart({ progress, size = 80, strokeWidth = 8, color = 'blue' }: Do
           style={{ transition: 'stroke-dashoffset 0.5s ease' }}
         />
       </svg>
-      <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-lg font-bold text-gray-800">
-          {Math.round(progress * 100)}%
-        </span>
-      </div>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-sm sm:text-lg font-bold text-gray-800">
+              {Math.round(progress * 100)}%
+            </span>
+          </div>
     </div>
   )
 }
@@ -134,34 +134,34 @@ export default function GroupProgressCard({
     })
   
   return (
-    <div className="glass-card rounded-2xl soft-shadow-lg p-5 mb-4 border border-white/50">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold text-gray-800 tracking-tight">
+    <div className="glass-card rounded-2xl soft-shadow-lg p-3 sm:p-5 mb-4 border border-white/50">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 sm:mb-4 gap-1">
+        <h2 className="text-lg sm:text-xl font-semibold text-gray-800 tracking-tight">
           Group Progress (week of {weekLabel})
         </h2>
-        <span className="text-sm text-gray-600 font-medium">
-          {daysRemaining} {daysRemaining === 1 ? 'day' : 'days'} left in week
+        <span className="text-xs sm:text-sm text-gray-600 font-medium">
+          {daysRemaining} {daysRemaining === 1 ? 'day' : 'days'} left
         </span>
       </div>
       
       {/* Cardio and Strength side by side */}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:gap-4">
         {/* Cardio Progress */}
         <div className="flex flex-col items-center">
-          <div className="text-sm font-semibold text-gray-800 mb-2 tracking-wide">Cardio</div>
+          <div className="text-xs sm:text-sm font-semibold text-gray-800 mb-1 sm:mb-2 tracking-wide">Cardio</div>
           <DonutChart
             progress={groupCardioProgress}
-            size={200}
-            strokeWidth={28}
+            size={140}
+            strokeWidth={20}
             color="green"
           />
-          <div className="text-sm font-medium text-gray-800 mt-2 text-center mb-3">
-            {groupCardioTotal.toFixed(1)} / {groupCardioTarget.toFixed(1)} {challenge.cardio_metric}
+          <div className="text-xs sm:text-sm font-medium text-gray-800 mt-1 sm:mt-2 text-center mb-2 sm:mb-3">
+            {groupCardioTotal.toFixed(1)} / {groupCardioTarget.toFixed(1)} {challenge.cardio_metric === 'miles' ? 'mi' : 'min'}
           </div>
           {/* Cardio Breakdown */}
-          <div className="w-full space-y-1 text-center">
+          <div className="w-full space-y-0.5 sm:space-y-1 text-center">
             {Object.entries(cardioBreakdown).map(([activity, amount]) => (
-              <div key={activity} className="text-xs text-gray-600 font-medium">
+              <div key={activity} className="text-[10px] sm:text-xs text-gray-600 font-medium">
                 {activity}: {amount.toFixed(1)} {challenge.cardio_metric === 'miles' ? 'mi' : 'min'}
               </div>
             ))}
@@ -170,23 +170,23 @@ export default function GroupProgressCard({
 
         {/* Strength Overall Progress */}
         <div className="flex flex-col items-center">
-          <div className="text-sm font-semibold text-gray-800 mb-2 tracking-wide">Strength Overall</div>
+          <div className="text-xs sm:text-sm font-semibold text-gray-800 mb-1 sm:mb-2 tracking-wide">Strength</div>
           <DonutChart
             progress={groupStrengthProgress}
-            size={200}
-            strokeWidth={28}
+            size={140}
+            strokeWidth={20}
             color="blue"
           />
-          <div className="text-sm font-medium text-gray-800 mt-2 text-center mb-3">
+          <div className="text-xs sm:text-sm font-medium text-gray-800 mt-1 sm:mt-2 text-center mb-2 sm:mb-3">
             {Math.round(groupStrengthProgress * 100)}% complete
           </div>
           {/* Exercise List */}
-          <div className="w-full space-y-1 text-center">
+          <div className="w-full space-y-0.5 sm:space-y-1 text-center">
             {exercises.map(exercise => {
               const total = groupExerciseTotals[exercise.id] || 0
               const groupTarget = exercise.target_reps * numberOfMembers
               return (
-                <div key={exercise.id} className="text-xs text-gray-600 font-medium">
+                <div key={exercise.id} className="text-[10px] sm:text-xs text-gray-600 font-medium">
                   {exercise.name}: {Math.round(total)} / {Math.round(groupTarget)}
                 </div>
               )

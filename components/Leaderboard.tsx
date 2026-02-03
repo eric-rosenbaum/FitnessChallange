@@ -65,79 +65,79 @@ export default function Leaderboard({ progressList, currentUserId, logs, exercis
   }
 
   return (
-    <div className="glass-card rounded-2xl soft-shadow-lg p-5 mb-4 border border-white/50">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold text-gray-800 tracking-tight">Leaderboard</h2>
+    <div className="glass-card rounded-2xl soft-shadow-lg p-3 sm:p-5 mb-4 border border-white/50">
+      <div className="flex items-center justify-between mb-3 sm:mb-4">
+        <h2 className="text-lg sm:text-xl font-semibold text-gray-800 tracking-tight">Leaderboard</h2>
         {hasMore && (
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="text-sm font-medium text-emerald-600 hover:text-emerald-700 transition-colors"
+            className="text-xs sm:text-sm font-medium text-emerald-600 hover:text-emerald-700 transition-colors"
           >
             {isExpanded ? 'Collapse' : 'Expand'}
           </button>
         )}
       </div>
       
-      <div className="space-y-3">
-        {displayList.map((progress, index) => (
-          <div
-            key={progress.user_id}
-            className={`flex items-center gap-3 p-3 rounded-xl transition-all ${
-              progress.user_id === currentUserId 
-                ? 'bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100/50' 
-                : 'hover:bg-gray-50/50'
-            }`}
-          >
-            <div className="flex-shrink-0 w-8 text-center font-semibold text-gray-700">
-              {index + 1}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium text-gray-900 truncate">
-                {progress.display_name}
-                {progress.user_id === currentUserId && ' (You)'}
-              </div>
-              <div className="w-full bg-gray-200/50 rounded-full h-2.5 mt-1.5 overflow-hidden">
-                <div
-                  className="gradient-green-translucent h-2.5 rounded-full transition-all"
-                  style={{ width: `${Math.min(progress.total_progress * 100, 100)}%` }}
-                />
-              </div>
-              {getUserBreakdown(progress.user_id) && (
-                <div className="text-xs text-gray-500 mt-1 truncate">
-                  {getUserBreakdown(progress.user_id)}
+          <div className="space-y-2 sm:space-y-3">
+            {displayList.map((progress, index) => (
+              <div
+                key={progress.user_id}
+                className={`flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-xl transition-all ${
+                  progress.user_id === currentUserId 
+                    ? 'bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100/50' 
+                    : 'hover:bg-gray-50/50'
+                }`}
+              >
+                <div className="flex-shrink-0 w-6 sm:w-8 text-center font-semibold text-gray-700 text-xs sm:text-sm">
+                  {index + 1}
                 </div>
-              )}
-            </div>
-            <div className="flex-shrink-0 text-sm font-medium text-gray-700">
-              {Math.round(progress.total_progress * 100)}%
-            </div>
-          </div>
-        ))}
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs sm:text-sm font-medium text-gray-900 truncate">
+                    {progress.display_name}
+                    {progress.user_id === currentUserId && ' (You)'}
+                  </div>
+                  <div className="w-full bg-gray-200/50 rounded-full h-2 sm:h-2.5 mt-1 sm:mt-1.5 overflow-hidden">
+                    <div
+                      className="gradient-green-translucent h-2 sm:h-2.5 rounded-full transition-all"
+                      style={{ width: `${Math.min(progress.total_progress * 100, 100)}%` }}
+                    />
+                  </div>
+                  {getUserBreakdown(progress.user_id) && (
+                    <div className="text-[10px] sm:text-xs text-gray-500 mt-0.5 sm:mt-1 truncate">
+                      {getUserBreakdown(progress.user_id)}
+                    </div>
+                  )}
+                </div>
+                <div className="flex-shrink-0 text-xs sm:text-sm font-medium text-gray-700">
+                  {Math.round(progress.total_progress * 100)}%
+                </div>
+              </div>
+            ))}
         
         {!isExpanded && showCurrentUser && currentUser && (
           <>
             <div className="border-t border-gray-200 my-2"></div>
-            <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100/50">
-              <div className="flex-shrink-0 w-8 text-center font-semibold text-gray-700">
+            <div className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100/50">
+              <div className="flex-shrink-0 w-6 sm:w-8 text-center font-semibold text-gray-700 text-xs sm:text-sm">
                 {currentUserIndex + 1}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-gray-900 truncate">
+                <div className="text-xs sm:text-sm font-medium text-gray-900 truncate">
                   {currentUser.display_name} (You)
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                <div className="w-full bg-gray-200 rounded-full h-2 sm:h-2.5 mt-1 sm:mt-1.5">
                   <div
-                    className="bg-purple-600 h-2 rounded-full transition-all"
+                    className="gradient-green-translucent h-2 sm:h-2.5 rounded-full transition-all"
                     style={{ width: `${Math.min(currentUser.total_progress * 100, 100)}%` }}
                   />
                 </div>
                 {getUserBreakdown(currentUser.user_id) && (
-                  <div className="text-xs text-gray-500 mt-1 truncate">
+                  <div className="text-[10px] sm:text-xs text-gray-500 mt-0.5 sm:mt-1 truncate">
                     {getUserBreakdown(currentUser.user_id)}
                   </div>
                 )}
               </div>
-              <div className="flex-shrink-0 text-sm font-medium text-gray-700">
+              <div className="flex-shrink-0 text-xs sm:text-sm font-medium text-gray-700">
                 {Math.round(currentUser.total_progress * 100)}%
               </div>
             </div>

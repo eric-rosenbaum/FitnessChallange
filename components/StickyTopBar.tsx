@@ -29,16 +29,17 @@ export default function StickyTopBar({ isAdmin, hostName, challengeCreatedBy }: 
   
   return (
     <div className="sticky top-0 z-50 glass-card border-b border-white/30 soft-shadow">
-      <div className="px-4 py-3">
-        <div className="flex items-center justify-center relative">
+      <div className="px-3 sm:px-4 py-2 sm:py-3">
+        <div className="flex items-center justify-between gap-2">
+          {/* Left: Profile Icon */}
           <Link
             href="/profile"
-            className="absolute left-0 p-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50/50 rounded-xl transition-all"
+            className="flex-shrink-0 p-1.5 sm:p-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50/50 rounded-xl transition-all"
             aria-label="Profile"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              className="h-6 w-6"
+              className="h-5 w-5 sm:h-6 sm:w-6"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -51,23 +52,29 @@ export default function StickyTopBar({ isAdmin, hostName, challengeCreatedBy }: 
               />
             </svg>
           </Link>
-          <div className="flex flex-col items-center">
-            <h1 className="text-xl font-bold text-gray-800 tracking-tight">FriendsFitnessChallenge</h1>
+          
+          {/* Center: Title and Subtitle */}
+          <div className="flex flex-col items-center flex-1 min-w-0 px-2">
+            <h1 className="text-base sm:text-xl font-bold text-gray-800 tracking-tight truncate w-full text-center">
+              FriendsFitnessChallenge
+            </h1>
             {challengeCreatedBy && (
-              <p className="text-xs text-gray-600 mt-0.5">
-                This week&apos;s challenge created by: <span className="font-semibold">{challengeCreatedBy}</span>
+              <p className="text-[10px] sm:text-xs text-gray-600 mt-0.5 text-center truncate w-full">
+                Created by: <span className="font-semibold">{challengeCreatedBy}</span>
               </p>
             )}
           </div>
-          <div className="absolute right-0 flex items-center gap-2">
+          
+          {/* Right: Settings and Sign Out */}
+          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
             <Link
               href="/settings"
-              className="p-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50/50 rounded-xl transition-all"
+              className="p-1.5 sm:p-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50/50 rounded-xl transition-all"
               aria-label="Group settings"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                className="h-6 w-6"
+                className="h-5 w-5 sm:h-6 sm:w-6"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -83,10 +90,11 @@ export default function StickyTopBar({ isAdmin, hostName, challengeCreatedBy }: 
             {supabase && (
               <button
                 onClick={handleLogout}
-                className="p-2 text-gray-600 hover:text-gray-700 hover:bg-white/50 rounded-xl transition-colors text-sm font-medium"
+                className="p-1.5 sm:p-2 text-gray-600 hover:text-gray-700 hover:bg-white/50 rounded-xl transition-colors text-xs sm:text-sm font-medium whitespace-nowrap"
                 aria-label="Sign out"
               >
-                Sign Out
+                <span className="hidden sm:inline">Sign Out</span>
+                <span className="sm:hidden">Out</span>
               </button>
             )}
           </div>
