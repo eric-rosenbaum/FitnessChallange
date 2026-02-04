@@ -82,6 +82,7 @@ export default function ProfilePage() {
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
+                  style={{ fontSize: '16px' }}
                   placeholder="Enter your display name"
                 />
               </div>

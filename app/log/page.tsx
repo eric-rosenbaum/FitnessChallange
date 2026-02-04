@@ -189,8 +189,8 @@ function LogPageContent() {
                   <select
                     value={cardioActivity}
                     onChange={(e) => setCardioActivity(e.target.value as CardioActivity)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50 text-sm"
-                    style={{ height: '2.5rem', lineHeight: '1.5rem' }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
+                    style={{ height: '2.5rem', lineHeight: '1.5rem', fontSize: '16px' }}
                     required
                   >
                     <option value="run">Run</option>
@@ -209,8 +209,8 @@ function LogPageContent() {
                     min="0"
                     value={cardioAmount}
                     onChange={(e) => setCardioAmount(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50 text-sm"
-                    style={{ height: '2.5rem', lineHeight: '1.5rem' }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
+                    style={{ height: '2.5rem', lineHeight: '1.5rem', fontSize: '16px' }}
                     required
                   />
                 </div>
@@ -224,8 +224,8 @@ function LogPageContent() {
                   <select
                     value={exerciseId}
                     onChange={(e) => setExerciseId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50 text-sm"
-                    style={{ height: '2.5rem', lineHeight: '1.5rem' }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
+                    style={{ height: '2.5rem', lineHeight: '1.5rem', fontSize: '16px' }}
                     required
                   >
                     <option value="">Select exercise</option>
@@ -245,8 +245,8 @@ function LogPageContent() {
                     min="1"
                     value={strengthReps}
                     onChange={(e) => setStrengthReps(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50 text-sm"
-                    style={{ height: '2.5rem', lineHeight: '1.5rem' }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
+                    style={{ height: '2.5rem', lineHeight: '1.5rem', fontSize: '16px' }}
                     required
                   />
                 </div>
@@ -261,9 +261,9 @@ function LogPageContent() {
                 type="date"
                 value={loggedDate}
                 onChange={(e) => setLoggedDate(e.target.value)}
-                className="w-full min-w-0 px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50 text-sm"
+                className="w-full min-w-0 px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
                 style={{ 
-                  fontSize: '14px',
+                  fontSize: '16px',
                   lineHeight: '1.5rem',
                   height: '2.5rem',
                   maxHeight: '2.5rem',

@@ -205,6 +205,7 @@ export default function CreateChallengePage() {
                   value={cardioMetric}
                   onChange={(e) => setCardioMetric(e.target.value as CardioMetric)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
+                  style={{ fontSize: '16px' }}
                 >
                   <option value="miles">Distance (Miles)</option>
                   <option value="minutes">Time (Hours/Minutes)</option>
@@ -221,6 +222,7 @@ export default function CreateChallengePage() {
                   value={cardioTarget}
                   onChange={(e) => setCardioTarget(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
+                  style={{ fontSize: '16px' }}
                   placeholder={cardioMetric === 'miles' ? 'e.g., 20' : 'e.g., 300'}
                   required
                 />
@@ -249,7 +251,8 @@ export default function CreateChallengePage() {
                       value={exercise.name}
                       onChange={(e) => handleExerciseChange(exercise.id, 'name', e.target.value)}
                       maxLength={50}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50 text-sm"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
+                      style={{ fontSize: '16px' }}
                       placeholder="Exercise name (e.g., Pushups)"
                       required
                     />
@@ -259,7 +262,8 @@ export default function CreateChallengePage() {
                       pattern="[0-9]*"
                       value={exercise.targetReps}
                       onChange={(e) => handleExerciseChange(exercise.id, 'targetReps', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50 text-sm"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
+                      style={{ fontSize: '16px' }}
                       placeholder="Number of reps"
                       required
                     />

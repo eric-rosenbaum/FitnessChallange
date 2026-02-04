@@ -310,6 +310,7 @@ export default function SettingsPage() {
                 value={groupName}
                 onChange={(e) => setGroupName(e.target.value)}
                 className="flex-1 px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
+                style={{ fontSize: '16px' }}
                 placeholder="Group name"
               />
               <button
@@ -423,6 +424,7 @@ export default function SettingsPage() {
                       value={newCurrentHost}
                       onChange={(e) => setNewCurrentHost(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
+                      style={{ fontSize: '16px' }}
                       required
                     >
                       <option value="">Select a member</option>
@@ -500,6 +502,7 @@ export default function SettingsPage() {
                       value={newAssignmentHost}
                       onChange={(e) => setNewAssignmentHost(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
+                      style={{ fontSize: '16px' }}
                       required
                     >
                       <option value="">Select a member</option>
@@ -520,6 +523,7 @@ export default function SettingsPage() {
                         value={newAssignmentStartDate}
                         onChange={(e) => setNewAssignmentStartDate(e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
+                        style={{ fontSize: '16px' }}
                         required
                       />
                     </div>
@@ -532,6 +536,7 @@ export default function SettingsPage() {
                         value={newAssignmentEndDate}
                         onChange={(e) => setNewAssignmentEndDate(e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
+                        style={{ fontSize: '16px' }}
                         required
                       />
                     </div>
