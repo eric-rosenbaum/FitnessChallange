@@ -533,23 +533,126 @@ export async function getUserProgress(
 
 export async function getLeaderboard(groupId: string): Promise<UserProgress[]> {
   const supabase = createClient() as SupabaseClient
-  const { data, error } = await supabase
-    .from('v_leaderboard_active_week')
+  
+  // First, get all current group members
+  const { data: memberships, error: membershipError } = await supabase
+    .from('group_memberships')
+    .select('user_id')
+    .eq('group_id', groupId)
+  
+  if (membershipError) throw membershipError
+  if (!memberships || memberships.length === 0) return []
+  
+  const memberUserIds = memberships.map(m => m.user_id)
+  
+  // Get active week to find the challenge
+  const { data: activeWeek, error: weekError } = await supabase
+    .from('v_active_week')
+    .select('challenge_id')
+    .eq('group_id', groupId)
+    .maybeSingle()
+  
+  if (weekError) throw weekError
+  if (!activeWeek?.challenge_id) return []
+  
+  const challengeId = activeWeek.challenge_id
+  
+  // Get challenge details
+  const { data: challenge, error: challengeError } = await supabase
+    .from('week_challenges')
     .select('*')
+    .eq('id', challengeId)
+    .single()
   
-  if (error) throw error
-  if (!data) return []
+  if (challengeError || !challenge) return []
   
-  return (data as any[]).map((row: any) => ({
-    user_id: row.user_id,
-    display_name: row.display_name,
-    cardio_total: 0, // Not in view, would need to calculate
-    cardio_progress: row.cardio_progress,
-    strength_overall_progress: row.strength_overall_progress,
-    total_progress: row.total_progress,
-    last_activity_at: row.last_activity_at || undefined,
-    exercise_totals: {}, // Not in view
-  }))
+  // Get exercises
+  const { data: exercises, error: exercisesError } = await supabase
+    .from('strength_exercises')
+    .select('*')
+    .eq('week_challenge_id', challengeId)
+    .order('sort_order')
+  
+  if (exercisesError) throw exercisesError
+  
+  // Get all logs for all members
+  const { data: allLogs, error: logsError } = await supabase
+    .from('workout_logs')
+    .select('*')
+    .eq('week_challenge_id', challengeId)
+    .in('user_id', memberUserIds)
+  
+  if (logsError) throw logsError
+  
+  // Get profiles for display names
+  const { data: profiles, error: profilesError } = await supabase
+    .from('profiles')
+    .select('id, display_name')
+    .in('id', memberUserIds)
+  
+  if (profilesError) throw profilesError
+  const profileMap = new Map((profiles || []).map((p: any) => [p.id, p.display_name]))
+  
+  // Calculate progress for each member
+  const progressList: UserProgress[] = memberUserIds.map(userId => {
+    const userLogs = (allLogs || []).filter((log: any) => log.user_id === userId)
+    
+    // Calculate cardio progress
+    const cardioTotal = userLogs
+      .filter((log: any) => log.log_type === 'cardio')
+      .reduce((sum: number, log: any) => sum + (log.cardio_amount || 0), 0)
+    const cardioProgress = Math.min(cardioTotal / (challenge as any).cardio_target, 1)
+    
+    // Calculate strength progress (average across all exercises)
+    const exerciseTotals: Record<string, number> = {}
+    ;(exercises || []).forEach((ex: any) => {
+      const total = userLogs
+        .filter((log: any) => log.log_type === 'strength' && log.exercise_id === ex.id)
+        .reduce((sum: number, log: any) => sum + (log.strength_reps || 0), 0)
+      exerciseTotals[ex.id] = total
+    })
+    
+    const strengthProgresses = (exercises || []).map((ex: any) => {
+      const total = exerciseTotals[ex.id] || 0
+      return Math.min(total / ex.target_reps, 1)
+    })
+    
+    const strengthOverallProgress = strengthProgresses.length > 0
+      ? strengthProgresses.reduce((sum, p) => sum + p, 0) / strengthProgresses.length
+      : 0
+    
+    // Total progress is average of cardio and strength
+    const totalProgress = (cardioProgress + strengthOverallProgress) / 2
+    
+    const lastActivity = userLogs.length > 0
+      ? userLogs.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0].created_at
+      : undefined
+    
+    return {
+      user_id: userId,
+      display_name: profileMap.get(userId) || 'Unknown',
+      cardio_total: cardioTotal,
+      cardio_progress: cardioProgress,
+      strength_overall_progress: strengthOverallProgress,
+      total_progress: totalProgress,
+      last_activity_at: lastActivity,
+      exercise_totals: exerciseTotals,
+    }
+  })
+  
+  // Sort by total progress
+  return progressList.sort((a, b) => {
+    // Sort by total_progress descending
+    if (b.total_progress !== a.total_progress) {
+      return b.total_progress - a.total_progress
+    }
+    // Tie-breaker: higher cardio_progress
+    if (b.cardio_progress !== a.cardio_progress) {
+      return b.cardio_progress - a.cardio_progress
+    }
+    // Tie-breaker: higher strength_overall_progress
+    return b.strength_overall_progress - a.strength_overall_progress
+  })
 }
 
 export async function getActivityFeed(groupId: string, limit: number = 5): Promise<ActivityFeedItem[]> {

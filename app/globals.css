@@ -22,7 +22,7 @@ body {
 @layer utilities {
   .glass-card {
     /* Warm off-white paper color instead of pure white */
-    background: #faf8f5;
+    background: #fefefe;
     /* Remove backdrop blur - paper is opaque, not glass */
     /* Add subtle paper texture */
     background-image: 
