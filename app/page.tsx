@@ -317,7 +317,7 @@ function HomePageContent() {
             />
           )}
           {activityFeed.length > 0 && (
-            <ActivityFeed feedItems={activityFeed} challenge={activeWeek?.challenge} />
+            <ActivityFeed feedItems={activityFeed} challenge={activeWeek?.challenge} groupId={group.id} />
           )}
         </div>
         
@@ -356,7 +356,7 @@ function HomePageContent() {
                 </Link>
               </>
             )}
-            <ActivityFeed feedItems={activityFeed} challenge={activeWeek?.challenge} />
+            <ActivityFeed feedItems={activityFeed} challenge={activeWeek?.challenge} groupId={group.id} />
           </div>
           <div className="space-y-4">
             {activeWeek?.challenge && (

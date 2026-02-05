@@ -44,6 +44,9 @@ export async function updateSession(request: NextRequest) {
     // supabase.auth.getUser(). A simple mistake could make it very hard to debug
     // issues with users being randomly logged out.
 
+    // getUser() automatically refreshes expired sessions using the refresh token
+    // This ensures users stay logged in across browser sessions
+    // Access tokens expire after 1 hour, but refresh tokens last 30 days
     const {
       data: { user },
     } = await supabase.auth.getUser()
