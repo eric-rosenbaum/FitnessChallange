@@ -8,6 +8,7 @@ import { useUserGroup } from '@/lib/hooks/useUserGroup'
 import { getActiveWeek } from '@/lib/db/queries'
 import { updateWorkoutLog, deleteWorkoutLog } from '@/lib/db/queries'
 import type { WorkoutLog, StrengthExercise } from '@/types'
+import LoadingSpinner from '@/components/LoadingSpinner'
 
 function EditLogsPageContent() {
   const { user, logs, refreshLogs, challenge, exercises } = useApp()
@@ -107,9 +108,7 @@ function EditLogsPageContent() {
       <div className="min-h-screen">
         <StickyTopBar />
         <div className="flex items-center justify-center p-4 min-h-[calc(100vh-80px)]">
-          <div className="glass-card rounded-2xl soft-shadow-lg p-6 text-center max-w-md border border-red-100/30">
-            <p className="text-gray-700 mb-4 font-medium">Loading...</p>
-          </div>
+          <LoadingSpinner fullScreen={false} />
         </div>
       </div>
     )
@@ -265,11 +264,7 @@ function EditLogsPageContent() {
 
 export default function EditLogsPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-gray-600">Loading...</div>
-      </div>
-    }>
+    <Suspense fallback={<LoadingSpinner />}>
       <EditLogsPageContent />
     </Suspense>
   )

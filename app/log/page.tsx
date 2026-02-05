@@ -9,6 +9,7 @@ import { useUserGroup } from '@/lib/hooks/useUserGroup'
 import { getActiveWeek } from '@/lib/db/queries'
 import { createWorkoutLog, updateWorkoutLog } from '@/lib/db/queries'
 import { createClient } from '@/lib/supabase/client'
+import LoadingSpinner from '@/components/LoadingSpinner'
 
 function LogPageContent() {
   const router = useRouter()
@@ -119,13 +120,7 @@ function LogPageContent() {
   
   // Show loading state while fetching
   if (isLoadingWeek || groupLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="glass-card rounded-2xl soft-shadow-lg p-6 text-center max-w-md border border-red-100/30">
-          <p className="text-gray-700 mb-4 font-medium">Loading...</p>
-        </div>
-      </div>
-    )
+    return <LoadingSpinner />
   }
   
   // Show error/empty state only after loading is complete
@@ -303,11 +298,7 @@ function LogPageContent() {
 
 export default function LogPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-600">Loading...</div>
-      </div>
-    }>
+    <Suspense fallback={<LoadingSpinner />}>
       <LogPageContent />
     </Suspense>
   )

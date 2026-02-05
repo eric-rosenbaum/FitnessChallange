@@ -11,6 +11,7 @@ import ActivityFeed from '@/components/ActivityFeed'
 import EmptyState from '@/components/EmptyState'
 import HostPromptCard from '@/components/HostPromptCard'
 import WaitingForHostCard from '@/components/WaitingForHostCard'
+import LoadingSpinner from '@/components/LoadingSpinner'
 import { useApp } from '@/context/AppContext'
 import { useUserGroup } from '@/lib/hooks/useUserGroup'
 import {
@@ -196,11 +197,7 @@ function HomePageContent() {
   }, [challenge, user, group, refreshLogs])
 
   if (authLoading || groupLoading || isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-gray-600">Loading...</div>
-      </div>
-    )
+    return <LoadingSpinner />
   }
 
   // No group - show create/join options
@@ -388,11 +385,7 @@ function HomePageContent() {
 
 export default function HomePage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-gray-600">Loading...</div>
-      </div>
-    }>
+    <Suspense fallback={<LoadingSpinner />}>
       <HomePageContent />
     </Suspense>
   )

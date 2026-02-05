@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { updateProfile } from '@/lib/db/queries'
 import Link from 'next/link'
+import LoadingSpinner from '@/components/LoadingSpinner'
 
 export default function OnboardingPage() {
   const router = useRouter()
@@ -58,11 +59,7 @@ export default function OnboardingPage() {
   }
   
   if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-gray-600">Loading...</div>
-      </div>
-    )
+    return <LoadingSpinner />
   }
   
   return (

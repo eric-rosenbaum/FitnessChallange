@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useApp } from '@/context/AppContext'
 import { getProfile, updateProfile } from '@/lib/db/queries'
 import { createClient } from '@/lib/supabase/client'
+import LoadingSpinner from '@/components/LoadingSpinner'
 
 export default function ProfilePage() {
   const { user } = useApp()
@@ -53,11 +54,7 @@ export default function ProfilePage() {
   }
   
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-gray-600">Loading...</div>
-      </div>
-    )
+    return <LoadingSpinner />
   }
   
   return (

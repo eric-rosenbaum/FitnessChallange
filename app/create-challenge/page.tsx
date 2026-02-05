@@ -7,6 +7,7 @@ import type { CardioMetric } from '@/types'
 import { useApp } from '@/context/AppContext'
 import { useUserGroup } from '@/lib/hooks/useUserGroup'
 import { getActiveWeek, createWeekChallenge, updateWeekChallenge } from '@/lib/db/queries'
+import LoadingSpinner from '@/components/LoadingSpinner'
 
 interface ExerciseInput {
   id: string
@@ -54,11 +55,7 @@ export default function CreateChallengePage() {
   }, [challenge, exercises])
   
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-gray-600">Loading...</div>
-      </div>
-    )
+    return <LoadingSpinner />
   }
   
   if (!activeWeek) {

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApp } from '@/context/AppContext'
 import { useUserGroup } from '@/lib/hooks/useUserGroup'
+import LoadingSpinner from '@/components/LoadingSpinner'
 import {
   getGroup,
   getGroupMemberships,
@@ -274,11 +275,7 @@ export default function SettingsPage() {
   }
   
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-gray-600">Loading...</div>
-      </div>
-    )
+    return <LoadingSpinner />
   }
   
   if (!group) {

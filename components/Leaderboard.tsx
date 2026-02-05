@@ -14,16 +14,66 @@ interface LeaderboardProps {
 export default function Leaderboard({ progressList, currentUserId, logs, exercises, challenge }: LeaderboardProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   
+  // Calculate shared ranks
+  // Two people with identical total_progress, cardio_progress, and strength_overall_progress get the same rank
+  const calculateRanks = (list: UserProgress[]): number[] => {
+    if (list.length === 0) return []
+    
+    const ranks: number[] = []
+    let currentRank = 1
+    
+    for (let i = 0; i < list.length; i++) {
+      if (i === 0) {
+        // First person always gets rank 1
+        ranks.push(1)
+      } else {
+        const prev = list[i - 1]
+        const curr = list[i]
+        
+        // Check if this person has identical progress to the previous person
+        // For 100% completion, we check if both have >= 1.0 for all three metrics
+        const prevIsPerfect = prev.total_progress >= 1.0 && prev.cardio_progress >= 1.0 && prev.strength_overall_progress >= 1.0
+        const currIsPerfect = curr.total_progress >= 1.0 && curr.cardio_progress >= 1.0 && curr.strength_overall_progress >= 1.0
+        
+        if (prevIsPerfect && currIsPerfect) {
+          // Both are at 100%+ for all metrics - same rank
+          ranks.push(ranks[i - 1])
+        } else if (
+          prev.total_progress === curr.total_progress &&
+          prev.cardio_progress === curr.cardio_progress &&
+          prev.strength_overall_progress === curr.strength_overall_progress
+        ) {
+          // Identical progress (even if not 100%) - same rank
+          ranks.push(ranks[i - 1])
+        } else {
+          // Different progress - calculate next rank
+          // Count how many people share the previous rank
+          const previousRank = ranks[i - 1]
+          const peopleAtPreviousRank = ranks.filter(r => r === previousRank).length
+          currentRank = previousRank + peopleAtPreviousRank
+          ranks.push(currentRank)
+        }
+      }
+    }
+    
+    return ranks
+  }
+  
+  const ranks = calculateRanks(progressList)
+  
   // Get top 3
   const top3 = progressList.slice(0, 3)
+  const top3Ranks = ranks.slice(0, 3)
   
   // Get current user's position and data
   const currentUserIndex = progressList.findIndex(p => p.user_id === currentUserId)
   const currentUser = progressList[currentUserIndex]
+  const currentUserRank = currentUserIndex >= 0 ? ranks[currentUserIndex] : null
   const showCurrentUser = currentUserIndex >= 3 // Only show separately if not in top 3
   
   // Determine what to show
   const displayList = isExpanded ? progressList : top3
+  const displayRanks = isExpanded ? ranks : top3Ranks
   const hasMore = progressList.length > 3
 
   // Calculate breakdown for a user
@@ -89,7 +139,7 @@ export default function Leaderboard({ progressList, currentUserId, logs, exercis
                 }`}
               >
                 <div className="flex-shrink-0 w-6 sm:w-8 text-center font-semibold text-gray-700 text-xs sm:text-sm">
-                  {index + 1}
+                  {displayRanks[index]}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-xs sm:text-sm font-medium text-gray-900 truncate">
@@ -114,12 +164,12 @@ export default function Leaderboard({ progressList, currentUserId, logs, exercis
               </div>
             ))}
         
-        {!isExpanded && showCurrentUser && currentUser && (
+        {!isExpanded && showCurrentUser && currentUser && currentUserRank !== null && (
           <>
             <div className="border-t border-gray-200 my-2"></div>
             <div className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-xl bg-gradient-to-r from-green-50 to-green-100/50 border border-green-200/50">
               <div className="flex-shrink-0 w-6 sm:w-8 text-center font-semibold text-gray-700 text-xs sm:text-sm">
-                {currentUserIndex + 1}
+                {currentUserRank}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-xs sm:text-sm font-medium text-gray-900 truncate">
