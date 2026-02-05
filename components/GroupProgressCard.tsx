@@ -104,12 +104,68 @@ export default function GroupProgressCard({
     }
   }, [showInfo])
   
-  // Calculate days remaining
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const endDate = new Date(weekEndDate)
-  endDate.setHours(23, 59, 59, 999)
-  const daysRemaining = Math.max(0, Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)))
+  // Format time remaining
+  const formatTimeRemaining = (ms: number): string => {
+    const totalSeconds = Math.floor(ms / 1000)
+    const totalMinutes = Math.floor(totalSeconds / 60)
+    const totalHours = Math.floor(totalMinutes / 60)
+    const totalDays = Math.floor(totalHours / 24)
+    
+    if (totalHours < 1) {
+      // Less than 1 hour: show minutes and seconds
+      const minutes = totalMinutes
+      const seconds = totalSeconds % 60
+      if (minutes > 0) {
+        return `${minutes} ${minutes === 1 ? 'min' : 'mins'} ${seconds} ${seconds === 1 ? 'sec' : 'secs'}`
+      } else {
+        return `${seconds} ${seconds === 1 ? 'sec' : 'secs'}`
+      }
+    } else if (totalDays < 1) {
+      // Less than 1 day: show hours and minutes
+      const hours = totalHours
+      const minutes = totalMinutes % 60
+      if (minutes > 0) {
+        return `${hours} ${hours === 1 ? 'hr' : 'hrs'} ${minutes} ${minutes === 1 ? 'min' : 'mins'}`
+      } else {
+        return `${hours} ${hours === 1 ? 'hr' : 'hrs'}`
+      }
+    } else {
+      // 1 day or more: show days and hours
+      const days = totalDays
+      const hours = totalHours % 24
+      if (hours > 0) {
+        return `${days} ${days === 1 ? 'day' : 'days'} ${hours} ${hours === 1 ? 'hr' : 'hrs'}`
+      } else {
+        return `${days} ${days === 1 ? 'day' : 'days'}`
+      }
+    }
+  }
+  
+  // Calculate time remaining with real-time updates
+  const [timeRemainingText, setTimeRemainingText] = useState('')
+  
+  useEffect(() => {
+    const endDate = new Date(weekEndDate)
+    endDate.setHours(23, 59, 59, 999)
+    
+    const updateTime = () => {
+      const now = new Date()
+      const timeRemainingMs = Math.max(0, endDate.getTime() - now.getTime())
+      setTimeRemainingText(formatTimeRemaining(timeRemainingMs))
+    }
+    
+    // Update immediately
+    updateTime()
+    
+    // Update interval based on time remaining
+    const timeRemainingMs = Math.max(0, endDate.getTime() - new Date().getTime())
+    const totalHours = Math.floor(timeRemainingMs / (1000 * 60 * 60))
+    const interval = totalHours < 1 ? 1000 : 60000 // Update every second if < 1 hour, else every minute
+    
+    const intervalId = setInterval(updateTime, interval)
+    
+    return () => clearInterval(intervalId)
+  }, [weekEndDate])
   
   // Calculate group cardio total (capped at 100% per person)
   // Group logs by user, calculate each user's total, cap at individual target, then sum
@@ -248,7 +304,7 @@ export default function GroupProgressCard({
         </h2>
         <div className="flex items-center gap-2">
           <span className="text-xs sm:text-sm text-gray-600 font-medium">
-            {daysRemaining} {daysRemaining === 1 ? 'day' : 'days'} left
+            {timeRemainingText} left
           </span>
           {/* Desktop: show info icon next to days left */}
           <div className="hidden sm:block relative" ref={infoRefDesktop}>

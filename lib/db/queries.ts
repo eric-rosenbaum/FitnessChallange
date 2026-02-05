@@ -182,11 +182,31 @@ export async function getActiveWeek(groupId: string): Promise<ActiveWeek | null>
     return null
   }
   
+  // Extract date strings, ensuring they're in YYYY-MM-DD format
+  // Supabase DATE columns should return as strings, but we'll ensure format
+  const rawStartDate = (assignmentData as any).start_date
+  const rawEndDate = (assignmentData as any).end_date
+  
+  // Extract just the date part (YYYY-MM-DD) if there's any time component
+  const startDate = typeof rawStartDate === 'string' 
+    ? rawStartDate.split(/[T\s]/)[0] 
+    : rawStartDate
+  const endDate = typeof rawEndDate === 'string'
+    ? rawEndDate.split(/[T\s]/)[0]
+    : rawEndDate
+  
+  console.log('[getActiveWeek] Date conversion:', {
+    rawStartDate,
+    rawEndDate,
+    startDate,
+    endDate,
+  })
+  
   const assignment: WeekAssignment = {
     id: (assignmentData as any).id,
     group_id: (assignmentData as any).group_id,
-    start_date: (assignmentData as any).start_date,
-    end_date: (assignmentData as any).end_date,
+    start_date: startDate,
+    end_date: endDate,
     host_user_id: (assignmentData as any).host_user_id,
     assigned_by: (assignmentData as any).assigned_by,
     created_at: (assignmentData as any).created_at,
@@ -261,21 +281,64 @@ export async function createWeekAssignment(
 export async function updateWeekAssignment(
   assignmentId: string,
   hostUserId: string,
-  assignedBy: string
+  assignedBy: string,
+  startDate?: string,
+  endDate?: string
 ): Promise<WeekAssignment> {
   const supabase = createClient() as SupabaseClient
+  
+  const updateData: any = {
+    host_user_id: hostUserId,
+    assigned_by: assignedBy,
+  }
+  
+  if (startDate !== undefined) {
+    // Ensure we're sending just the date part (YYYY-MM-DD) without any time
+    const dateOnly = startDate.split(/[T\s]/)[0]
+    updateData.start_date = dateOnly
+    console.log('[updateWeekAssignment] Start date:', { original: startDate, dateOnly })
+  }
+  
+  if (endDate !== undefined) {
+    // Ensure we're sending just the date part (YYYY-MM-DD) without any time
+    const dateOnly = endDate.split(/[T\s]/)[0]
+    updateData.end_date = dateOnly
+    console.log('[updateWeekAssignment] End date:', { original: endDate, dateOnly })
+  }
+  
+  console.log('[updateWeekAssignment] Updating with data:', updateData)
+  
   const { data, error } = await supabase
     .from('week_assignments')
     // @ts-expect-error - Supabase type inference issue with Database type
-    .update({
-      host_user_id: hostUserId,
-      assigned_by: assignedBy,
-    })
+    .update(updateData)
     .eq('id', assignmentId)
     .select()
     .single()
   
-  if (error) throw error
+  if (error) {
+    console.error('[updateWeekAssignment] Error:', error)
+    throw error
+  }
+  
+  console.log('[updateWeekAssignment] Updated data:', data)
+  
+  // Ensure returned dates are in YYYY-MM-DD format
+  if (data) {
+    const result = { ...data }
+    if (result.start_date) {
+      result.start_date = String(result.start_date).split(/[T\s]/)[0]
+    }
+    if (result.end_date) {
+      result.end_date = String(result.end_date).split(/[T\s]/)[0]
+    }
+    console.log('[updateWeekAssignment] Formatted result dates:', {
+      start_date: result.start_date,
+      end_date: result.end_date,
+    })
+    return result
+  }
+  
   return data
 }
 

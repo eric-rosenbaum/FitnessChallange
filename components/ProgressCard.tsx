@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import type { UserProgress, StrengthExercise, WeekChallenge, WorkoutLog, CardioActivity } from '@/types'
 
@@ -84,12 +85,68 @@ export default function ProgressCard({
 }: ProgressCardProps) {
   const weekLabel = new Date(weekStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   
-  // Calculate days remaining
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const endDate = new Date(weekEndDate)
-  endDate.setHours(23, 59, 59, 999)
-  const daysRemaining = Math.max(0, Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)))
+  // Format time remaining
+  const formatTimeRemaining = (ms: number): string => {
+    const totalSeconds = Math.floor(ms / 1000)
+    const totalMinutes = Math.floor(totalSeconds / 60)
+    const totalHours = Math.floor(totalMinutes / 60)
+    const totalDays = Math.floor(totalHours / 24)
+    
+    if (totalHours < 1) {
+      // Less than 1 hour: show minutes and seconds
+      const minutes = totalMinutes
+      const seconds = totalSeconds % 60
+      if (minutes > 0) {
+        return `${minutes} ${minutes === 1 ? 'min' : 'mins'} ${seconds} ${seconds === 1 ? 'sec' : 'secs'}`
+      } else {
+        return `${seconds} ${seconds === 1 ? 'sec' : 'secs'}`
+      }
+    } else if (totalDays < 1) {
+      // Less than 1 day: show hours and minutes
+      const hours = totalHours
+      const minutes = totalMinutes % 60
+      if (minutes > 0) {
+        return `${hours} ${hours === 1 ? 'hr' : 'hrs'} ${minutes} ${minutes === 1 ? 'min' : 'mins'}`
+      } else {
+        return `${hours} ${hours === 1 ? 'hr' : 'hrs'}`
+      }
+    } else {
+      // 1 day or more: show days and hours
+      const days = totalDays
+      const hours = totalHours % 24
+      if (hours > 0) {
+        return `${days} ${days === 1 ? 'day' : 'days'} ${hours} ${hours === 1 ? 'hr' : 'hrs'}`
+      } else {
+        return `${days} ${days === 1 ? 'day' : 'days'}`
+      }
+    }
+  }
+  
+  // Calculate time remaining with real-time updates
+  const [timeRemainingText, setTimeRemainingText] = useState('')
+  
+  useEffect(() => {
+    const endDate = new Date(weekEndDate)
+    endDate.setHours(23, 59, 59, 999)
+    
+    const updateTime = () => {
+      const now = new Date()
+      const timeRemainingMs = Math.max(0, endDate.getTime() - now.getTime())
+      setTimeRemainingText(formatTimeRemaining(timeRemainingMs))
+    }
+    
+    // Update immediately
+    updateTime()
+    
+    // Update interval based on time remaining
+    const timeRemainingMs = Math.max(0, endDate.getTime() - new Date().getTime())
+    const totalHours = Math.floor(timeRemainingMs / (1000 * 60 * 60))
+    const interval = totalHours < 1 ? 1000 : 60000 // Update every second if < 1 hour, else every minute
+    
+    const intervalId = setInterval(updateTime, interval)
+    
+    return () => clearInterval(intervalId)
+  }, [weekEndDate])
   
   // Calculate cardio breakdown
   const userCardioLogs = logs.filter(log => 
@@ -113,7 +170,7 @@ export default function ProgressCard({
           Your Progress (week of {weekLabel})
         </h2>
         <span className="text-xs sm:text-sm text-gray-600 font-medium">
-          {daysRemaining} {daysRemaining === 1 ? 'day' : 'days'} left
+          {timeRemainingText} left
         </span>
       </div>
       

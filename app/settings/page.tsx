@@ -20,6 +20,23 @@ import {
 } from '@/lib/db/queries'
 import type { GroupMembership, ActiveWeek, WeekAssignment } from '@/types'
 
+// Helper function to extract date in YYYY-MM-DD format, handling timezone issues
+// This function ensures we always get the date as YYYY-MM-DD without timezone conversion
+function formatDateForInput(dateString: string): string {
+  if (!dateString) return ''
+  
+  // Extract just the date part (YYYY-MM-DD) from any format
+  // Handle formats like "2026-02-09", "2026-02-09T00:00:00", "2026-02-09T00:00:00.000Z", etc.
+  const dateMatch = dateString.match(/^(\d{4}-\d{2}-\d{2})/)
+  if (dateMatch) {
+    return dateMatch[1]
+  }
+  
+  // If no match, return as-is (shouldn't happen with valid dates)
+  console.warn('[formatDateForInput] Unexpected date format:', dateString)
+  return dateString
+}
+
 export default function SettingsPage() {
   const router = useRouter()
   const { user } = useApp()
@@ -62,6 +79,12 @@ export default function SettingsPage() {
   const [isUpdatingHost, setIsUpdatingHost] = useState(false)
   const [deletingAssignmentId, setDeletingAssignmentId] = useState<string | null>(null)
   
+  // Form state for editing current week dates
+  const [editingCurrentDates, setEditingCurrentDates] = useState(false)
+  const [newCurrentStartDate, setNewCurrentStartDate] = useState('')
+  const [newCurrentEndDate, setNewCurrentEndDate] = useState('')
+  const [isUpdatingDates, setIsUpdatingDates] = useState(false)
+  
   const currentUserMembership = memberships.find(m => m.user_id === user?.id)
   const isAdmin = currentUserMembership?.role === 'admin'
   const hasActiveWeek = !!activeWeek?.week_assignment
@@ -85,6 +108,9 @@ export default function SettingsPage() {
         setActiveWeek(week)
         if (week?.week_assignment) {
           setNewCurrentHost(week.week_assignment.host_user_id)
+          // Ensure dates are in YYYY-MM-DD format, handling timezone issues
+          setNewCurrentStartDate(formatDateForInput(week.week_assignment.start_date))
+          setNewCurrentEndDate(formatDateForInput(week.week_assignment.end_date))
         }
       })
       
@@ -196,6 +222,83 @@ export default function SettingsPage() {
       console.error('[Settings] Error updating host:', error)
       alert('Error: ' + (error.message || 'Failed to update host'))
       setIsUpdatingHost(false)
+    }
+  }
+  
+  const handleUpdateCurrentDates = async () => {
+    if (!group || !user || !activeWeek?.week_assignment) return
+    
+    // Only admin can update dates
+    if (!isAdmin) {
+      alert('Only the admin can update dates')
+      return
+    }
+    
+    if (!newCurrentStartDate || !newCurrentEndDate) {
+      alert('Please fill in both start and end dates')
+      return
+    }
+    
+    if (new Date(newCurrentStartDate) > new Date(newCurrentEndDate)) {
+      alert('Start date must be before end date')
+      return
+    }
+    
+    setIsUpdatingDates(true)
+    try {
+      // Log what we're sending
+      console.log('[Settings] Sending dates:', {
+        startDate: newCurrentStartDate,
+        endDate: newCurrentEndDate,
+        startDateType: typeof newCurrentStartDate,
+        endDateType: typeof newCurrentEndDate,
+      })
+      
+      const result = await updateWeekAssignment(
+        activeWeek.week_assignment.id,
+        activeWeek.week_assignment.host_user_id,
+        user.id,
+        newCurrentStartDate,
+        newCurrentEndDate
+      )
+      
+      console.log('[Settings] Update result:', result)
+      console.log('[Settings] Result dates:', {
+        start_date: result.start_date,
+        end_date: result.end_date,
+      })
+      
+      // Refresh data immediately - wait a bit for database to update
+      await new Promise(resolve => setTimeout(resolve, 100))
+      const updatedWeek = await getActiveWeek(group.id)
+      console.log('[Settings] Updated week data:', updatedWeek)
+      console.log('[Settings] Updated week assignment dates:', {
+        start_date: updatedWeek?.week_assignment?.start_date,
+        end_date: updatedWeek?.week_assignment?.end_date,
+        formattedStart: updatedWeek?.week_assignment ? formatDateForInput(updatedWeek.week_assignment.start_date) : null,
+        formattedEnd: updatedWeek?.week_assignment ? formatDateForInput(updatedWeek.week_assignment.end_date) : null,
+      })
+      
+      if (updatedWeek?.week_assignment) {
+        setActiveWeek(updatedWeek)
+        // Ensure dates are in YYYY-MM-DD format, handling timezone issues
+        const formattedStart = formatDateForInput(updatedWeek.week_assignment.start_date)
+        const formattedEnd = formatDateForInput(updatedWeek.week_assignment.end_date)
+        console.log('[Settings] Setting dates in state:', { formattedStart, formattedEnd })
+        setNewCurrentStartDate(formattedStart)
+        setNewCurrentEndDate(formattedEnd)
+        setEditingCurrentDates(false)
+        alert('Dates updated!')
+        // Refresh the page to update dashboard
+        router.refresh()
+      } else {
+        throw new Error('Failed to fetch updated week data')
+      }
+    } catch (error: any) {
+      console.error('[Settings] Error updating dates:', error)
+      alert('Error: ' + (error.message || 'Failed to update dates'))
+    } finally {
+      setIsUpdatingDates(false)
     }
   }
   
@@ -375,25 +478,42 @@ export default function SettingsPage() {
             </div>
           </div>
           
-          {/* Current Week Assignment (Admin Only) */}
+          {/* Current Week Assignment */}
           {hasActiveWeek && activeWeek?.week_assignment && (
             <div className="glass-card rounded-2xl soft-shadow-lg p-6 border border-red-100/30">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-semibold text-gray-800 tracking-tight">Current Week Assignment</h2>
-                {isAdmin && (
-                  <button
-                    onClick={() => {
-                      setEditingCurrentHost(!editingCurrentHost)
-                      setNewCurrentHost(activeWeek.week_assignment.host_user_id)
-                    }}
-                    className="text-sm text-[#8B4513] hover:text-[#6B4423] hover:underline font-medium"
-                  >
-                    {editingCurrentHost ? 'Cancel' : 'Change Host'}
-                  </button>
-                )}
+                <div className="flex gap-2">
+                  {isAdmin && (
+                    <button
+                      onClick={() => {
+                        setEditingCurrentDates(!editingCurrentDates)
+                        if (!editingCurrentDates && activeWeek.week_assignment) {
+                          // Ensure dates are in YYYY-MM-DD format, handling timezone issues
+                          setNewCurrentStartDate(formatDateForInput(activeWeek.week_assignment.start_date))
+                          setNewCurrentEndDate(formatDateForInput(activeWeek.week_assignment.end_date))
+                        }
+                      }}
+                      className="text-sm text-[#8B4513] hover:text-[#6B4423] hover:underline font-medium"
+                    >
+                      {editingCurrentDates ? 'Cancel' : 'Edit Dates'}
+                    </button>
+                  )}
+                  {isAdmin && (
+                    <button
+                      onClick={() => {
+                        setEditingCurrentHost(!editingCurrentHost)
+                        setNewCurrentHost(activeWeek.week_assignment.host_user_id)
+                      }}
+                      className="text-sm text-[#8B4513] hover:text-[#6B4423] hover:underline font-medium"
+                    >
+                      {editingCurrentHost ? 'Cancel' : 'Change Host'}
+                    </button>
+                  )}
+                </div>
               </div>
               
-              {!editingCurrentHost ? (
+              {!editingCurrentHost && !editingCurrentDates ? (
                 <div className="space-y-2">
                   <p className="text-gray-700">
                     <span className="font-medium">Host:</span> {activeWeek.host_name || 'Unknown'}
@@ -411,6 +531,73 @@ export default function SettingsPage() {
                     </p>
                   )}
                 </div>
+              ) : editingCurrentDates && isAdmin ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Start Date
+                      </label>
+                      <input
+                        type="date"
+                        value={newCurrentStartDate}
+                        onChange={(e) => setNewCurrentStartDate(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50 text-base"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        End Date
+                      </label>
+                      <input
+                        type="date"
+                        value={newCurrentEndDate}
+                        onChange={(e) => {
+                          const newValue = e.target.value
+                          console.log('[Settings] End date input changed:', {
+                            newValue,
+                            previousValue: newCurrentEndDate,
+                            inputValue: e.target.value,
+                          })
+                          setNewCurrentEndDate(newValue)
+                        }}
+                        onBlur={(e) => {
+                          console.log('[Settings] End date input blurred:', {
+                            value: e.target.value,
+                            stateValue: newCurrentEndDate,
+                          })
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50 text-base"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Note: The week will end at 11:59 PM on the selected end date.
+                  </p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setEditingCurrentDates(false)}
+                      className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        console.log('[Settings] Update button clicked, current state:', {
+                          newCurrentStartDate,
+                          newCurrentEndDate,
+                        })
+                        handleUpdateCurrentDates()
+                      }}
+                      disabled={isUpdatingDates || !newCurrentStartDate || !newCurrentEndDate}
+                      className="flex-1 px-4 py-3 bg-[#8B4513] text-white rounded-xl hover:opacity-90 disabled:opacity-50 soft-shadow font-medium transition-all"
+                    >
+                      {isUpdatingDates ? 'Updating...' : 'Update Dates'}
+                    </button>
+                  </div>
+                </div>
               ) : (
                 <div className="space-y-4">
                   <div>
@@ -420,8 +607,7 @@ export default function SettingsPage() {
                     <select
                       value={newCurrentHost}
                       onChange={(e) => setNewCurrentHost(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
-                      style={{ fontSize: '16px' }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50 text-base"
                       required
                     >
                       <option value="">Select a member</option>
