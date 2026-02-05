@@ -543,7 +543,7 @@ export async function getLeaderboard(groupId: string): Promise<UserProgress[]> {
   if (membershipError) throw membershipError
   if (!memberships || memberships.length === 0) return []
   
-  const memberUserIds = memberships.map(m => m.user_id)
+  const memberUserIds = (memberships as { user_id: string }[]).map(m => m.user_id)
   
   // Get active week to find the challenge
   const { data: activeWeek, error: weekError } = await supabase
