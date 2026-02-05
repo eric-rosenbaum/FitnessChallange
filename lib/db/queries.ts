@@ -599,7 +599,7 @@ export async function getLeaderboard(groupId: string): Promise<UserProgress[]> {
   
   // Calculate progress for each member
   const progressList: UserProgress[] = memberUserIds.map(userId => {
-    const userLogs = (allLogs || []).filter((log: any) => log.user_id === userId)
+    const userLogs = ((allLogs || []) as any[]).filter((log: any) => log.user_id === userId)
     
     // Calculate cardio progress
     const cardioTotal = userLogs
