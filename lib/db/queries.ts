@@ -553,9 +553,9 @@ export async function getLeaderboard(groupId: string): Promise<UserProgress[]> {
     .maybeSingle()
   
   if (weekError) throw weekError
-  if (!activeWeek?.challenge_id) return []
+  if (!activeWeek || !(activeWeek as { challenge_id: string | null }).challenge_id) return []
   
-  const challengeId = activeWeek.challenge_id
+  const challengeId = (activeWeek as { challenge_id: string }).challenge_id
   
   // Get challenge details
   const { data: challenge, error: challengeError } = await supabase
@@ -574,6 +574,10 @@ export async function getLeaderboard(groupId: string): Promise<UserProgress[]> {
     .order('sort_order')
   
   if (exercisesError) throw exercisesError
+  
+  // Type assertions for TypeScript
+  const typedChallenge = challenge as any
+  const typedExercises = (exercises || []) as any[]
   
   // Get all logs for all members
   const { data: allLogs, error: logsError } = await supabase
@@ -601,18 +605,18 @@ export async function getLeaderboard(groupId: string): Promise<UserProgress[]> {
     const cardioTotal = userLogs
       .filter((log: any) => log.log_type === 'cardio')
       .reduce((sum: number, log: any) => sum + (log.cardio_amount || 0), 0)
-    const cardioProgress = Math.min(cardioTotal / (challenge as any).cardio_target, 1)
+    const cardioProgress = Math.min(cardioTotal / typedChallenge.cardio_target, 1)
     
     // Calculate strength progress (average across all exercises)
     const exerciseTotals: Record<string, number> = {}
-    ;(exercises || []).forEach((ex: any) => {
+    typedExercises.forEach((ex: any) => {
       const total = userLogs
         .filter((log: any) => log.log_type === 'strength' && log.exercise_id === ex.id)
         .reduce((sum: number, log: any) => sum + (log.strength_reps || 0), 0)
       exerciseTotals[ex.id] = total
     })
     
-    const strengthProgresses = (exercises || []).map((ex: any) => {
+    const strengthProgresses = typedExercises.map((ex: any) => {
       const total = exerciseTotals[ex.id] || 0
       return Math.min(total / ex.target_reps, 1)
     })
