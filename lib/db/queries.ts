@@ -377,10 +377,10 @@ export async function getAllAssignments(groupId: string): Promise<WeekAssignment
   
   // Format dates to YYYY-MM-DD
   return (data || []).map((assignment: any) => ({
-    ...assignment,
+    ...(assignment as any),
     start_date: String(assignment.start_date).split(/[T\s]/)[0],
     end_date: String(assignment.end_date).split(/[T\s]/)[0],
-  }))
+  })) as WeekAssignment[]
 }
 
 export async function getUpcomingAssignmentForUser(userId: string, groupId: string, daysAhead: number = 3): Promise<WeekAssignment | null> {
@@ -407,7 +407,7 @@ export async function getUpcomingAssignmentForUser(userId: string, groupId: stri
   
   // Format dates to YYYY-MM-DD
   return {
-    ...data,
+    ...(data as any),
     start_date: String(data.start_date).split(/[T\s]/)[0],
     end_date: String(data.end_date).split(/[T\s]/)[0],
   } as WeekAssignment
