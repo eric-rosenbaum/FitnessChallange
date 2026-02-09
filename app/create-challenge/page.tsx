@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import type { CardioMetric } from '@/types'
@@ -15,7 +15,7 @@ interface ExerciseInput {
   targetReps: string
 }
 
-export default function CreateChallengePage() {
+function CreateChallengePageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const assignmentIdParam = searchParams.get('assignmentId')
@@ -357,5 +357,13 @@ export default function CreateChallengePage() {
         </form>
       </div>
     </div>
+  )
+}
+
+export default function CreateChallengePage() {
+  return (
+    <Suspense fallback={<LoadingSpinner />}>
+      <CreateChallengePageContent />
+    </Suspense>
   )
 }
