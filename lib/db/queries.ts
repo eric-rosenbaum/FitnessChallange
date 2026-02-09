@@ -406,10 +406,11 @@ export async function getUpcomingAssignmentForUser(userId: string, groupId: stri
   if (!data) return null
   
   // Format dates to YYYY-MM-DD
+  const dataAny = data as any
   return {
-    ...(data as any),
-    start_date: String(data.start_date).split(/[T\s]/)[0],
-    end_date: String(data.end_date).split(/[T\s]/)[0],
+    ...dataAny,
+    start_date: String(dataAny.start_date).split(/[T\s]/)[0],
+    end_date: String(dataAny.end_date).split(/[T\s]/)[0],
   } as WeekAssignment
 }
 
