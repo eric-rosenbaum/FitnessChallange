@@ -325,7 +325,7 @@ export async function updateWeekAssignment(
   
   // Ensure returned dates are in YYYY-MM-DD format
   if (data) {
-    const result = { ...data }
+    const result = { ...(data as any) } as WeekAssignment
     if (result.start_date) {
       result.start_date = String(result.start_date).split(/[T\s]/)[0]
     }
@@ -339,7 +339,7 @@ export async function updateWeekAssignment(
     return result
   }
   
-  return data
+  return data as WeekAssignment
 }
 
 export async function getUpcomingAssignments(groupId: string, excludeCurrentAssignmentId?: string): Promise<WeekAssignment[]> {
