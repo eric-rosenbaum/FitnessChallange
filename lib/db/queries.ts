@@ -364,6 +364,84 @@ export async function getUpcomingAssignments(groupId: string, excludeCurrentAssi
   return data || []
 }
 
+export async function getAllAssignments(groupId: string): Promise<WeekAssignment[]> {
+  const supabase = createClient() as SupabaseClient
+  
+  const { data, error } = await supabase
+    .from('week_assignments')
+    .select('*')
+    .eq('group_id', groupId)
+    .order('start_date', { ascending: true })
+  
+  if (error) throw error
+  
+  // Format dates to YYYY-MM-DD
+  return (data || []).map((assignment: any) => ({
+    ...assignment,
+    start_date: String(assignment.start_date).split(/[T\s]/)[0],
+    end_date: String(assignment.end_date).split(/[T\s]/)[0],
+  }))
+}
+
+export async function getUpcomingAssignmentForUser(userId: string, groupId: string, daysAhead: number = 3): Promise<WeekAssignment | null> {
+  const supabase = createClient() as SupabaseClient
+  const today = new Date()
+  const futureDate = new Date(today)
+  futureDate.setDate(today.getDate() + daysAhead)
+  const todayStr = today.toISOString().split('T')[0]
+  const futureDateStr = futureDate.toISOString().split('T')[0]
+  
+  const { data, error } = await supabase
+    .from('week_assignments')
+    .select('*')
+    .eq('group_id', groupId)
+    .eq('host_user_id', userId)
+    .gte('start_date', todayStr)
+    .lte('start_date', futureDateStr)
+    .order('start_date', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  
+  if (error) throw error
+  if (!data) return null
+  
+  // Format dates to YYYY-MM-DD
+  return {
+    ...data,
+    start_date: String(data.start_date).split(/[T\s]/)[0],
+    end_date: String(data.end_date).split(/[T\s]/)[0],
+  } as WeekAssignment
+}
+
+export async function getChallengeForAssignment(assignmentId: string): Promise<{ challenge: WeekChallenge | null; exercises: StrengthExercise[] }> {
+  const supabase = createClient() as SupabaseClient
+  
+  const { data: challengeData, error: challengeError } = await supabase
+    .from('week_challenges')
+    .select('*')
+    .eq('week_assignment_id', assignmentId)
+    .maybeSingle()
+  
+  if (challengeError) throw challengeError
+  
+  let exercises: StrengthExercise[] = []
+  if (challengeData) {
+    const { data: exercisesData, error: exercisesError } = await supabase
+      .from('strength_exercises')
+      .select('*')
+      .eq('week_challenge_id', (challengeData as any).id)
+      .order('sort_order')
+    
+    if (exercisesError) throw exercisesError
+    exercises = (exercisesData || []) as StrengthExercise[]
+  }
+  
+  return {
+    challenge: challengeData as WeekChallenge | null,
+    exercises,
+  }
+}
+
 export async function deleteWeekAssignment(assignmentId: string): Promise<void> {
   const supabase = createClient() as SupabaseClient
   const { error } = await supabase
@@ -727,6 +805,7 @@ export async function getActivityFeed(groupId: string, limit: number = 5): Promi
   const { data, error } = await supabase
     .from('v_activity_feed_active_week')
     .select('*')
+    .eq('group_id', groupId)
     .limit(limit)
   
   if (error) throw error

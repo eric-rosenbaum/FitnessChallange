@@ -16,6 +16,8 @@ import {
   updateWeekAssignment,
   getActiveWeek,
   getUpcomingAssignments,
+  getAllAssignments,
+  getChallengeForAssignment,
   deleteWeekAssignment,
 } from '@/lib/db/queries'
 import type { GroupMembership, ActiveWeek, WeekAssignment } from '@/types'
@@ -37,6 +39,25 @@ function formatDateForInput(dateString: string): string {
   return dateString
 }
 
+// Helper function to format date for display (e.g., "Feb 8")
+// Parses date as local time to avoid timezone conversion issues
+function formatDateForDisplay(dateString: string): string {
+  if (!dateString) return ''
+  
+  // Extract date part (YYYY-MM-DD)
+  const dateMatch = dateString.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (dateMatch) {
+    const [, year, month, day] = dateMatch
+    // Create date in local timezone (not UTC) to avoid day shift
+    // Using Date(year, month-1, day) creates a date in local timezone
+    const localDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+    return localDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  }
+  
+  // Fallback: try standard parsing (may have timezone issues)
+  return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
 export default function SettingsPage() {
   const router = useRouter()
   const { user } = useApp()
@@ -56,6 +77,7 @@ export default function SettingsPage() {
   
   const [activeWeek, setActiveWeek] = useState<ActiveWeek | null>(null)
   const [upcomingAssignments, setUpcomingAssignments] = useState<WeekAssignment[]>([])
+  const [assignmentChallenges, setAssignmentChallenges] = useState<Record<string, { challenge: any; exercises: any[] } | null>>({})
   
   // Form state for upcoming assignments
   const [newAssignmentHost, setNewAssignmentHost] = useState('')
@@ -109,16 +131,35 @@ export default function SettingsPage() {
         if (week?.week_assignment) {
           setNewCurrentHost(week.week_assignment.host_user_id)
           // Ensure dates are in YYYY-MM-DD format, handling timezone issues
-          setNewCurrentStartDate(formatDateForInput(week.week_assignment.start_date))
-          setNewCurrentEndDate(formatDateForInput(week.week_assignment.end_date))
+          const formattedStart = formatDateForInput(week.week_assignment.start_date)
+          const formattedEnd = formatDateForInput(week.week_assignment.end_date)
+          console.log('[Settings] Setting initial dates from database:', {
+            rawStart: week.week_assignment.start_date,
+            rawEnd: week.week_assignment.end_date,
+            formattedStart,
+            formattedEnd,
+          })
+          setNewCurrentStartDate(formattedStart)
+          setNewCurrentEndDate(formattedEnd)
         }
       })
       
       // Fetch upcoming assignments (exclude current if exists)
       getActiveWeek(group.id).then((week) => {
         const currentAssignmentId = week?.week_assignment?.id
-        getUpcomingAssignments(group.id, currentAssignmentId).then((assignments) => {
+        getUpcomingAssignments(group.id, currentAssignmentId).then(async (assignments) => {
           setUpcomingAssignments(assignments)
+          // Fetch challenges for each assignment
+          const challenges: Record<string, { challenge: any; exercises: any[] } | null> = {}
+          for (const assignment of assignments) {
+            try {
+              const { challenge, exercises } = await getChallengeForAssignment(assignment.id)
+              challenges[assignment.id] = challenge ? { challenge, exercises } : null
+            } catch (error) {
+              challenges[assignment.id] = null
+            }
+          }
+          setAssignmentChallenges(challenges)
         })
       })
     }
@@ -246,20 +287,33 @@ export default function SettingsPage() {
     
     setIsUpdatingDates(true)
     try {
+      // Get the actual values from the input elements to ensure we have the correct dates
+      // This is a defensive measure in case state and DOM are out of sync
+      const startInput = document.querySelector('input[type="date"]:nth-of-type(1)') as HTMLInputElement
+      const endInput = document.querySelector('input[type="date"]:nth-of-type(2)') as HTMLInputElement
+      
+      // Use input values if available, otherwise fall back to state
+      const actualStartDate = startInput?.value || newCurrentStartDate
+      const actualEndDate = endInput?.value || newCurrentEndDate
+      
       // Log what we're sending
       console.log('[Settings] Sending dates:', {
-        startDate: newCurrentStartDate,
-        endDate: newCurrentEndDate,
-        startDateType: typeof newCurrentStartDate,
-        endDateType: typeof newCurrentEndDate,
+        stateStartDate: newCurrentStartDate,
+        stateEndDate: newCurrentEndDate,
+        inputStartDate: startInput?.value,
+        inputEndDate: endInput?.value,
+        actualStartDate,
+        actualEndDate,
+        startDateType: typeof actualStartDate,
+        endDateType: typeof actualEndDate,
       })
       
       const result = await updateWeekAssignment(
         activeWeek.week_assignment.id,
         activeWeek.week_assignment.host_user_id,
         user.id,
-        newCurrentStartDate,
-        newCurrentEndDate
+        actualStartDate,
+        actualEndDate
       )
       
       console.log('[Settings] Update result:', result)
@@ -280,11 +334,24 @@ export default function SettingsPage() {
       })
       
       if (updatedWeek?.week_assignment) {
-        setActiveWeek(updatedWeek)
+        // Force a re-render by creating a new object
+        setActiveWeek({
+          ...updatedWeek,
+          week_assignment: {
+            ...updatedWeek.week_assignment,
+            start_date: formatDateForInput(updatedWeek.week_assignment.start_date),
+            end_date: formatDateForInput(updatedWeek.week_assignment.end_date),
+          }
+        })
         // Ensure dates are in YYYY-MM-DD format, handling timezone issues
         const formattedStart = formatDateForInput(updatedWeek.week_assignment.start_date)
         const formattedEnd = formatDateForInput(updatedWeek.week_assignment.end_date)
-        console.log('[Settings] Setting dates in state:', { formattedStart, formattedEnd })
+        console.log('[Settings] Setting dates in state:', { 
+          rawStart: updatedWeek.week_assignment.start_date,
+          rawEnd: updatedWeek.week_assignment.end_date,
+          formattedStart, 
+          formattedEnd 
+        })
         setNewCurrentStartDate(formattedStart)
         setNewCurrentEndDate(formattedEnd)
         setEditingCurrentDates(false)
@@ -309,6 +376,49 @@ export default function SettingsPage() {
     if (!newAssignmentHost || !newAssignmentStartDate || !newAssignmentEndDate) {
       alert('Please fill in all fields')
       return
+    }
+    
+    // Check for overlapping dates
+    try {
+      const allAssignments = await getAllAssignments(group.id)
+      
+      // Helper to parse date string as local date (YYYY-MM-DD)
+      const parseLocalDate = (dateStr: string): Date => {
+        const dateMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/)
+        if (dateMatch) {
+          const [, year, month, day] = dateMatch
+          return new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+        }
+        return new Date(dateStr)
+      }
+      
+      // Check if new dates overlap with any existing assignment
+      const newStart = parseLocalDate(newAssignmentStartDate)
+      const newEnd = parseLocalDate(newAssignmentEndDate)
+      
+      for (const assignment of allAssignments) {
+        const existingStart = parseLocalDate(assignment.start_date)
+        const existingEnd = parseLocalDate(assignment.end_date)
+        
+        // Check for overlap: new assignment overlaps if:
+        // - newStart <= existingEnd AND newEnd >= existingStart
+        if (newStart <= existingEnd && newEnd >= existingStart) {
+          // Get host name for the conflicting assignment
+          const conflictingHost = membersWithProfiles.find(
+            m => m.user_id === assignment.host_user_id
+          )?.profile?.display_name || 'Unknown'
+          
+          // Format dates for display (using the existing helper function)
+          const conflictingStart = formatDateForDisplay(assignment.start_date)
+          const conflictingEnd = formatDateForDisplay(assignment.end_date)
+          
+          alert(`Cannot add assignment: these dates overlap with ${conflictingHost}'s assignment from ${conflictingStart} to ${conflictingEnd}`)
+          return
+        }
+      }
+    } catch (error: any) {
+      console.error('[Settings] Error checking for overlaps:', error)
+      // Continue with creation if overlap check fails (shouldn't happen, but don't block user)
     }
     
     setIsAddingAssignment(true)
@@ -519,12 +629,20 @@ export default function SettingsPage() {
                     <span className="font-medium">Host:</span> {activeWeek.host_name || 'Unknown'}
                   </p>
                   <p className="text-gray-700">
-                    <span className="font-medium">Week:</span> {new Date(activeWeek.week_assignment.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(activeWeek.week_assignment.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    <span className="font-medium">Week:</span> {formatDateForDisplay(activeWeek.week_assignment.start_date)} - {formatDateForDisplay(activeWeek.week_assignment.end_date)}
                   </p>
                   {activeWeek.challenge ? (
-                    <p className="text-[#8B4513] font-medium">
-                      ✓ Challenge has been created
-                    </p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-[#8B4513] font-medium">
+                        ✓ Challenge has been created
+                      </p>
+                      <Link
+                        href={`/create-challenge`}
+                        className="ml-3 px-3 py-1.5 text-sm text-[#8B4513] hover:text-[#6B4423] hover:bg-green-50/50 rounded-lg font-medium transition-colors"
+                      >
+                        Edit Exercises
+                      </Link>
+                    </div>
                   ) : (
                     <p className="text-amber-600 font-medium">
                       ⏳ Waiting for host to create challenge
@@ -540,8 +658,12 @@ export default function SettingsPage() {
                       </label>
                       <input
                         type="date"
-                        value={newCurrentStartDate}
-                        onChange={(e) => setNewCurrentStartDate(e.target.value)}
+                        value={newCurrentStartDate || ''}
+                        onChange={(e) => {
+                          const value = e.target.value
+                          console.log('[Settings] Start date onChange:', { value, previous: newCurrentStartDate })
+                          setNewCurrentStartDate(value)
+                        }}
                         className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50 text-base"
                         required
                       />
@@ -555,18 +677,27 @@ export default function SettingsPage() {
                         value={newCurrentEndDate}
                         onChange={(e) => {
                           const newValue = e.target.value
-                          console.log('[Settings] End date input changed:', {
+                          console.log('[Settings] End date input onChange:', {
                             newValue,
                             previousValue: newCurrentEndDate,
                             inputValue: e.target.value,
+                            inputElementValue: (e.target as HTMLInputElement).value,
                           })
-                          setNewCurrentEndDate(newValue)
+                          // Ensure we're using the exact value from the input
+                          setNewCurrentEndDate(e.target.value)
                         }}
                         onBlur={(e) => {
-                          console.log('[Settings] End date input blurred:', {
-                            value: e.target.value,
+                          const input = e.target as HTMLInputElement
+                          console.log('[Settings] End date input onBlur:', {
+                            inputValue: input.value,
                             stateValue: newCurrentEndDate,
+                            matches: input.value === newCurrentEndDate,
                           })
+                          // Sync state with actual input value on blur
+                          if (input.value !== newCurrentEndDate) {
+                            console.log('[Settings] Syncing end date state with input value')
+                            setNewCurrentEndDate(input.value)
+                          }
                         }}
                         className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50 text-base"
                         required
@@ -638,42 +769,83 @@ export default function SettingsPage() {
             </div>
           )}
           
-          {/* Upcoming Assignments (Admin Only) */}
-          {isAdmin && (
-            <div className="glass-card rounded-2xl soft-shadow-lg p-6 border border-red-100/30">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4 tracking-tight">Upcoming Assignments</h2>
-              
-              {/* List of upcoming assignments */}
-              {upcomingAssignments.length > 0 && (
-                <div className="space-y-3 mb-6">
-                  {upcomingAssignments.map((assignment) => {
-                    const hostMember = membersWithProfiles.find(m => m.user_id === assignment.host_user_id)
-                    return (
-                      <div key={assignment.id} className="p-3 bg-gray-50/50 rounded-xl border border-gray-200/50">
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-800">
-                              {hostMember?.profile?.display_name || 'Unknown'}
-                            </p>
-                            <p className="text-sm text-gray-600">
-                              {new Date(assignment.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(assignment.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => handleDeleteAssignment(assignment.id)}
-                            disabled={deletingAssignmentId === assignment.id}
-                            className="ml-3 px-3 py-1.5 text-red-600 hover:text-red-700 hover:bg-red-50/50 text-sm rounded-lg font-medium transition-colors disabled:opacity-50"
-                          >
-                            {deletingAssignmentId === assignment.id ? 'Deleting...' : 'Delete'}
-                          </button>
+          {/* Upcoming Assignments (Visible to All Users) */}
+          <div className="glass-card rounded-2xl soft-shadow-lg p-6 border border-red-100/30">
+            <h2 className="text-xl font-semibold text-gray-800 mb-4 tracking-tight">Upcoming Assignments</h2>
+            
+            {/* List of upcoming assignments */}
+            {upcomingAssignments.length > 0 ? (
+              <div className="space-y-3 mb-6">
+                {upcomingAssignments.map((assignment) => {
+                  const hostMember = membersWithProfiles.find(m => m.user_id === assignment.host_user_id)
+                  const hasChallenge = assignmentChallenges[assignment.id]?.challenge
+                  const challengeData = assignmentChallenges[assignment.id]
+                  const isCurrentUser = assignment.host_user_id === user?.id
+                  return (
+                    <div key={assignment.id} className="p-3 bg-gray-50/50 rounded-xl border border-gray-200/50">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-800">
+                            {hostMember?.profile?.display_name || 'Unknown'}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            {formatDateForDisplay(assignment.start_date)} - {formatDateForDisplay(assignment.end_date)}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          {isCurrentUser && (
+                            <Link
+                              href={`/create-challenge?assignmentId=${assignment.id}`}
+                              className="px-3 py-1.5 text-sm text-[#8B4513] hover:text-[#6B4423] hover:bg-green-50/50 rounded-lg font-medium transition-colors"
+                            >
+                              {hasChallenge ? 'Edit' : 'Set'} Exercises
+                            </Link>
+                          )}
+                          {isAdmin && (
+                            <button
+                              onClick={() => handleDeleteAssignment(assignment.id)}
+                              disabled={deletingAssignmentId === assignment.id}
+                              className="px-3 py-1.5 text-red-600 hover:text-red-700 hover:bg-red-50/50 text-sm rounded-lg font-medium transition-colors disabled:opacity-50"
+                            >
+                              {deletingAssignmentId === assignment.id ? 'Deleting...' : 'Delete'}
+                            </button>
+                          )}
                         </div>
                       </div>
-                    )
-                  })}
-                </div>
-              )}
-              
-              {/* Form to add new upcoming assignment */}
+                      {hasChallenge && challengeData ? (
+                        <div className="mt-3 pt-3 border-t border-gray-200/50">
+                          <p className="text-xs font-semibold text-gray-700 mb-2">Challenge Details:</p>
+                          <p className="text-xs text-gray-600 mb-1">
+                            <span className="font-medium">Cardio:</span> {challengeData.challenge.cardio_target} {challengeData.challenge.cardio_metric}
+                          </p>
+                          {challengeData.exercises.length > 0 && (
+                            <div className="mt-1">
+                              <p className="text-xs font-medium text-gray-600 mb-1">Strength Exercises:</p>
+                              <ul className="text-xs text-gray-600 space-y-0.5">
+                                {challengeData.exercises.map((ex: any) => (
+                                  <li key={ex.id}>
+                                    • {ex.name}: {ex.target_reps} reps
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-500 mt-2 italic">
+                          Exercises not set yet
+                        </p>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 mb-6">No upcoming assignments</p>
+            )}
+            
+            {/* Form to add new upcoming assignment (Admin Only) */}
+            {isAdmin && (
               <div className="pt-4 border-t border-gray-200/50">
                 <h3 className="text-lg font-semibold text-gray-800 mb-4 tracking-tight">Add Upcoming Assignment</h3>
                 <form onSubmit={handleAddUpcomingAssignment} className="space-y-4">
@@ -733,8 +905,8 @@ export default function SettingsPage() {
                   </button>
                 </form>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>

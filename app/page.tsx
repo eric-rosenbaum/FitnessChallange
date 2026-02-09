@@ -11,6 +11,7 @@ import ActivityFeed from '@/components/ActivityFeed'
 import EmptyState from '@/components/EmptyState'
 import HostPromptCard from '@/components/HostPromptCard'
 import WaitingForHostCard from '@/components/WaitingForHostCard'
+import UpcomingHostBanner from '@/components/UpcomingHostBanner'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import { useApp } from '@/context/AppContext'
 import { useUserGroup } from '@/lib/hooks/useUserGroup'
@@ -22,6 +23,8 @@ import {
   getWorkoutLogs,
   getProfile,
   getGroupMemberships,
+  getUpcomingAssignmentForUser,
+  getChallengeForAssignment,
 } from '@/lib/db/queries'
 import type { ActiveWeek, UserProgress, ActivityFeedItem } from '@/types'
 import { calculateUserProgress } from '@/lib/dummyData'
@@ -37,6 +40,7 @@ function HomePageContent() {
   const [activityFeed, setActivityFeed] = useState<ActivityFeedItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [numberOfMembers, setNumberOfMembers] = useState(1)
+  const [upcomingAssignment, setUpcomingAssignment] = useState<any>(null)
 
   // Redirect if no user
   useEffect(() => {
@@ -77,6 +81,29 @@ function HomePageContent() {
       })
     }
   }, [group?.id])
+
+  // Check for upcoming assignment within next 3 days
+  useEffect(() => {
+    if (group?.id && user?.id) {
+      getUpcomingAssignmentForUser(user.id, group.id, 3).then((assignment) => {
+        if (assignment) {
+          // Check if challenge already exists - if so, don't show banner
+          getChallengeForAssignment(assignment.id).then(({ challenge }) => {
+            if (!challenge) {
+              setUpcomingAssignment(assignment)
+            } else {
+              setUpcomingAssignment(null)
+            }
+          })
+        } else {
+          setUpcomingAssignment(null)
+        }
+      }).catch((error) => {
+        console.error('[HomePage] Error checking upcoming assignment:', error)
+        setUpcomingAssignment(null)
+      })
+    }
+  }, [group?.id, user?.id])
 
   // Fetch active week and data
   useEffect(() => {
@@ -196,6 +223,25 @@ function HomePageContent() {
     }
   }, [challenge, user, group, refreshLogs])
 
+  // Refresh upcoming assignment banner when returning from create-challenge
+  useEffect(() => {
+    if (group?.id && user?.id) {
+      getUpcomingAssignmentForUser(user.id, group.id, 3).then((assignment) => {
+        if (assignment) {
+          getChallengeForAssignment(assignment.id).then(({ challenge }) => {
+            if (!challenge) {
+              setUpcomingAssignment(assignment)
+            } else {
+              setUpcomingAssignment(null)
+            }
+          })
+        } else {
+          setUpcomingAssignment(null)
+        }
+      })
+    }
+  }, [group?.id, user?.id, router])
+
   if (authLoading || groupLoading || isLoading) {
     return <LoadingSpinner />
   }
@@ -266,6 +312,9 @@ function HomePageContent() {
           <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
         {/* Mobile: Vertical stack */}
         <div className="lg:hidden space-y-3 sm:space-y-4">
+          {upcomingAssignment && (
+            <UpcomingHostBanner weekAssignment={upcomingAssignment} />
+          )}
           {showHostPrompt && activeWeek?.week_assignment && (
             <HostPromptCard weekAssignment={activeWeek.week_assignment} />
           )}
@@ -321,6 +370,9 @@ function HomePageContent() {
         {/* Desktop: Two-column layout */}
         <div className="hidden lg:block space-y-4">
           {/* Full-width banner cards at top */}
+          {upcomingAssignment && (
+            <UpcomingHostBanner weekAssignment={upcomingAssignment} />
+          )}
           {showHostPrompt && activeWeek?.week_assignment && (
             <HostPromptCard weekAssignment={activeWeek.week_assignment} />
           )}

@@ -126,8 +126,19 @@ export default function ProgressCard({
   const [timeRemainingText, setTimeRemainingText] = useState('')
   
   useEffect(() => {
-    const endDate = new Date(weekEndDate)
-    endDate.setHours(23, 59, 59, 999)
+    // Parse end date as local time to avoid timezone issues
+    // Extract YYYY-MM-DD from the date string
+    const dateMatch = weekEndDate.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    let endDate: Date
+    if (dateMatch) {
+      const [, year, month, day] = dateMatch
+      // Create date in local timezone (not UTC) to avoid day shift
+      endDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), 23, 59, 59, 999)
+    } else {
+      // Fallback: try standard parsing
+      endDate = new Date(weekEndDate)
+      endDate.setHours(23, 59, 59, 999)
+    }
     
     const updateTime = () => {
       const now = new Date()

@@ -145,8 +145,19 @@ export default function GroupProgressCard({
   const [timeRemainingText, setTimeRemainingText] = useState('')
   
   useEffect(() => {
-    const endDate = new Date(weekEndDate)
-    endDate.setHours(23, 59, 59, 999)
+    // Parse end date as local time to avoid timezone issues
+    // Extract YYYY-MM-DD from the date string
+    const dateMatch = weekEndDate.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    let endDate: Date
+    if (dateMatch) {
+      const [, year, month, day] = dateMatch
+      // Create date in local timezone (not UTC) to avoid day shift
+      endDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), 23, 59, 59, 999)
+    } else {
+      // Fallback: try standard parsing
+      endDate = new Date(weekEndDate)
+      endDate.setHours(23, 59, 59, 999)
+    }
     
     const updateTime = () => {
       const now = new Date()
@@ -234,21 +245,7 @@ export default function GroupProgressCard({
     ? strengthProgresses.reduce((sum, p) => sum + p, 0) / strengthProgresses.length
     : 0
   
-  // Debug logging (after all calculations)
-  console.log('[GroupProgressCard]', {
-    numberOfMembers,
-    totalLogs: logs.length,
-    uniqueUsers: Array.from(new Set(logs.filter(log => log.user_id).map(log => log.user_id))),
-    userCardioTotals,
-    cappedUserCardioTotals,
-    groupCardioTotal,
-    individualTarget: challenge.cardio_target,
-    groupCardioTarget,
-    groupCardioProgress,
-    cardioLogs: logs.filter(log => log.log_type === 'cardio').length,
-    exerciseTotals: groupExerciseTotals,
-    groupStrengthProgress,
-  })
+  // Debug logging removed to prevent infinite loop
   
   // Calculate cardio breakdown by activity type
   const cardioBreakdown: Record<string, number> = {}

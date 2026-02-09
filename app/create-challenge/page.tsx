@@ -1,12 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import type { CardioMetric } from '@/types'
 import { useApp } from '@/context/AppContext'
 import { useUserGroup } from '@/lib/hooks/useUserGroup'
-import { getActiveWeek, createWeekChallenge, updateWeekChallenge } from '@/lib/db/queries'
+import { getActiveWeek, getChallengeForAssignment, getAllAssignments, createWeekChallenge, updateWeekChallenge } from '@/lib/db/queries'
 import LoadingSpinner from '@/components/LoadingSpinner'
 
 interface ExerciseInput {
@@ -17,9 +17,14 @@ interface ExerciseInput {
 
 export default function CreateChallengePage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const assignmentIdParam = searchParams.get('assignmentId')
   const { user, challenge, setChallenge, exercises, setExercises } = useApp()
   const { group } = useUserGroup()
   const [activeWeek, setActiveWeek] = useState<any>(null)
+  const [targetAssignment, setTargetAssignment] = useState<any>(null)
+  const [existingChallenge, setExistingChallenge] = useState<any>(null)
+  const [existingExercises, setExistingExercises] = useState<any[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   
@@ -29,19 +34,49 @@ export default function CreateChallengePage() {
     { id: '1', name: '', targetReps: '' },
   ])
   
-  // Fetch active week
+  // Fetch assignment data
   useEffect(() => {
     if (group) {
-      getActiveWeek(group.id).then((week) => {
-        setActiveWeek(week)
-        setIsLoading(false)
-      })
+      if (assignmentIdParam) {
+        // Fetch specific assignment for upcoming week
+        getAllAssignments(group.id).then((assignments) => {
+          const assignment = assignments.find(a => a.id === assignmentIdParam)
+          if (assignment) {
+            setTargetAssignment(assignment)
+            // Check if challenge already exists for this assignment
+            getChallengeForAssignment(assignmentIdParam).then(({ challenge: existingChallengeData, exercises: existingExercisesData }) => {
+              if (existingChallengeData) {
+                setExistingChallenge(existingChallengeData)
+                setExistingExercises(existingExercisesData)
+                setCardioMetric(existingChallengeData.cardio_metric)
+                setCardioTarget(existingChallengeData.cardio_target.toString())
+                if (existingExercisesData.length > 0) {
+                  setExerciseInputs(existingExercisesData.map((ex) => ({
+                    id: ex.id,
+                    name: ex.name,
+                    targetReps: ex.target_reps.toString(),
+                  })))
+                }
+              }
+              setIsLoading(false)
+            })
+          } else {
+            setIsLoading(false)
+          }
+        })
+      } else {
+        // Fetch active week (current behavior)
+        getActiveWeek(group.id).then((week) => {
+          setActiveWeek(week)
+          setIsLoading(false)
+        })
+      }
     }
-  }, [group])
+  }, [group, assignmentIdParam, setChallenge, setExercises])
   
-  // Initialize form with existing challenge if editing
+  // Initialize form with existing challenge if editing (for active week)
   useEffect(() => {
-    if (challenge) {
+    if (challenge && !assignmentIdParam) {
       setCardioMetric(challenge.cardio_metric)
       setCardioTarget(challenge.cardio_target.toString())
       if (exercises.length > 0) {
@@ -52,24 +87,27 @@ export default function CreateChallengePage() {
         })))
       }
     }
-  }, [challenge, exercises])
+  }, [challenge, exercises, assignmentIdParam])
   
   if (isLoading) {
     return <LoadingSpinner />
   }
   
-  if (!activeWeek) {
+  // Determine which assignment we're working with
+  const assignment = assignmentIdParam ? targetAssignment : activeWeek?.week_assignment
+  
+  if (!assignment) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="glass-card rounded-2xl soft-shadow-lg p-6 text-center max-w-md border border-red-100/30">
-          <p className="text-gray-700 mb-4 font-medium">No active week assignment found</p>
+          <p className="text-gray-700 mb-4 font-medium">No assignment found</p>
           <Link href="/" className="text-[#8B4513] hover:text-[#6B4423] hover:underline font-medium">Back to home</Link>
         </div>
       </div>
     )
   }
   
-  const isHost = activeWeek.week_assignment.host_user_id === user?.id
+  const isHost = assignment.host_user_id === user?.id
   
   if (!isHost) {
     return (
@@ -128,10 +166,13 @@ export default function CreateChallengePage() {
         throw new Error('User or group not found')
       }
       
-      if (challenge) {
+      // Check if challenge exists (either from context for active week, or from state for upcoming assignment)
+      const challengeToUpdate = assignmentIdParam ? existingChallenge : challenge
+      
+      if (challengeToUpdate) {
         // Update existing challenge
         const { challenge: updatedChallenge, exercises: updatedExercises } = await updateWeekChallenge(
-          challenge.id,
+          challengeToUpdate.id,
           cardioMetric,
           parseFloat(cardioTarget),
           exerciseInputs.map(ex => ({
@@ -139,13 +180,16 @@ export default function CreateChallengePage() {
             targetReps: parseInt(ex.targetReps),
           }))
         )
-        setChallenge(updatedChallenge)
-        setExercises(updatedExercises)
+        // Only update context if it's the active week challenge
+        if (!assignmentIdParam) {
+          setChallenge(updatedChallenge)
+          setExercises(updatedExercises)
+        }
       } else {
         // Create new challenge
         const { challenge: newChallenge, exercises: newExercises } = await createWeekChallenge(
           group.id,
-          activeWeek.week_assignment.id,
+          assignment.id,
           user.id,
           cardioMetric,
           parseFloat(cardioTarget),
@@ -154,8 +198,11 @@ export default function CreateChallengePage() {
             targetReps: parseInt(ex.targetReps),
           }))
         )
-        setChallenge(newChallenge)
-        setExercises(newExercises)
+        // Only update context if it's the active week challenge
+        if (!assignmentIdParam) {
+          setChallenge(newChallenge)
+          setExercises(newExercises)
+        }
       }
       
       router.push('/')
@@ -169,7 +216,18 @@ export default function CreateChallengePage() {
     router.push('/')
   }
   
-  const weekLabel = `Week of ${new Date(activeWeek.week_assignment.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+  // Format date for display
+  const formatDateForDisplay = (dateString: string): string => {
+    const dateMatch = dateString.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (dateMatch) {
+      const [, year, month, day] = dateMatch
+      const localDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+      return localDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    }
+    return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  }
+  
+  const weekLabel = `Week of ${formatDateForDisplay(assignment.start_date)}`
   
   return (
     <div className="min-h-screen">

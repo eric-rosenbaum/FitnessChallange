@@ -181,7 +181,8 @@ SELECT
   wl.cardio_amount,
   se.name as exercise_name,
   wl.strength_reps,
-  wl.created_at
+  wl.created_at,
+  aw.group_id
 FROM workout_logs wl
 JOIN profiles p ON p.id = wl.user_id
 LEFT JOIN strength_exercises se ON se.id = wl.exercise_id
