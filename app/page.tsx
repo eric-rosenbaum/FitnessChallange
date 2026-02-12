@@ -20,7 +20,6 @@ import {
   getUserProgress,
   getLeaderboard,
   getActivityFeed,
-  getWorkoutLogs,
   getProfile,
   getGroupMemberships,
   getUpcomingAssignmentForUser,
@@ -140,15 +139,8 @@ function HomePageContent() {
           // Fetch logs (all group logs, not just current user)
           await refreshLogs(weekData.challenge.id)
           
-          // Get all logs for debugging
-          const allLogs = await getWorkoutLogs(weekData.challenge.id)
-          console.log('[HomePage] All logs fetched:', {
-            totalLogs: allLogs.length,
-            cardioLogs: allLogs.filter(log => log.log_type === 'cardio').length,
-            strengthLogs: allLogs.filter(log => log.log_type === 'strength').length,
-            uniqueUsers: Array.from(new Set(allLogs.map(log => log.user_id))),
-            userCount: new Set(allLogs.map(log => log.user_id)).size,
-          })
+          // Use logs from context instead of re-fetching
+          // Logs are already fetched by refreshLogs above
 
           // Get user progress
           const userProgress = await getUserProgress(user.id, weekData.challenge.id)
@@ -221,7 +213,7 @@ function HomePageContent() {
         }
       })
     }
-  }, [challenge, user, group, refreshLogs])
+  }, [challenge?.id, user?.id, group?.id, refreshLogs]) // Use IDs instead of objects to prevent unnecessary re-runs
 
   // Refresh upcoming assignment banner when returning from create-challenge
   useEffect(() => {

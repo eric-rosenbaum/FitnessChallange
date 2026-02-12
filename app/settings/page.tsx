@@ -171,17 +171,23 @@ export default function SettingsPage() {
     if (!supabase) return
     
     async function fetchProfiles() {
-      if (!supabase) return
-      const membersWithProfilesData = await Promise.all(
-        memberships.map(async (m) => {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('display_name')
-            .eq('id', m.user_id)
-            .single()
-          return { ...m, profile: { id: m.user_id, display_name: (profile as { display_name?: string } | null)?.display_name || 'Unknown' } }
-        })
-      )
+      if (!supabase || memberships.length === 0) return
+      // Batch fetch all profiles in a single query instead of N queries
+      const userIds = memberships.map(m => m.user_id)
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, display_name')
+        .in('id', userIds)
+      
+      const profileMap = new Map((profiles || []).map((p: any) => [p.id, p.display_name]))
+      
+      const membersWithProfilesData = memberships.map(m => ({
+        ...m,
+        profile: {
+          id: m.user_id,
+          display_name: profileMap.get(m.user_id) || 'Unknown'
+        }
+      }))
       setMembersWithProfiles(membersWithProfilesData)
     }
     if (memberships.length > 0) {

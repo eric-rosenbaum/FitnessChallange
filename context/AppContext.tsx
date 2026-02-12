@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { WorkoutLog, WeekChallenge, StrengthExercise } from '@/types'
 import { getWorkoutLogs } from '@/lib/db/queries'
@@ -49,14 +49,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe()
   }, [])
   
-  const refreshLogs = async (challengeId: string) => {
+  const refreshLogs = useCallback(async (challengeId: string) => {
     try {
       const logsData = await getWorkoutLogs(challengeId)
       setLogs(logsData)
     } catch (error) {
       console.error('Error fetching logs:', error)
     }
-  }
+  }, [])
   
   const updateLog = (logId: string, updates: Partial<WorkoutLog>) => {
     setLogs(prev => prev.map(log => 

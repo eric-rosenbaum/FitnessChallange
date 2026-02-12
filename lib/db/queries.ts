@@ -618,10 +618,10 @@ export async function getUserProgress(
     .eq('week_challenge_id', challengeId)
     .order('sort_order')
   
-  // Get user logs
+  // Get user logs - only select columns we need
   const { data: logs } = await supabase
     .from('workout_logs')
-    .select('*')
+    .select('log_type, cardio_amount, exercise_id, strength_reps, created_at')
     .eq('user_id', userId)
     .eq('week_challenge_id', challengeId)
   
@@ -721,10 +721,10 @@ export async function getLeaderboard(groupId: string): Promise<UserProgress[]> {
   const typedChallenge = challenge as any
   const typedExercises = (exercises || []) as any[]
   
-  // Get all logs for all members
+  // Get all logs for all members - only select columns we need
   const { data: allLogs, error: logsError } = await supabase
     .from('workout_logs')
-    .select('*')
+    .select('user_id, log_type, cardio_amount, exercise_id, strength_reps, created_at')
     .eq('week_challenge_id', challengeId)
     .in('user_id', memberUserIds)
   
