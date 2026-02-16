@@ -11,6 +11,16 @@ import { createWorkoutLog, updateWorkoutLog } from '@/lib/db/queries'
 import { createClient } from '@/lib/supabase/client'
 import LoadingSpinner from '@/components/LoadingSpinner'
 
+// Helper function to get today's date in local timezone (YYYY-MM-DD format)
+// This prevents timezone issues where UTC date might be different from local date
+function getLocalDateString(): string {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 function LogPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -54,7 +64,7 @@ function LogPageContent() {
   const [cardioAmount, setCardioAmount] = useState('')
   const [exerciseId, setExerciseId] = useState('')
   const [strengthReps, setStrengthReps] = useState('')
-  const [loggedDate, setLoggedDate] = useState(new Date().toISOString().split('T')[0])
+  const [loggedDate, setLoggedDate] = useState(getLocalDateString())
   
   // Initialize form if editing
   useEffect(() => {

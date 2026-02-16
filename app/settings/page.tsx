@@ -41,6 +41,25 @@ function formatDateForInput(dateString: string): string {
 
 // Helper function to format date for display (e.g., "Feb 8")
 // Parses date as local time to avoid timezone conversion issues
+// Helper function to get today's date in local timezone (YYYY-MM-DD format)
+function getLocalDateString(): string {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+// Helper function to add days to a date string and return YYYY-MM-DD
+function addDaysToDateString(dateString: string, days: number): string {
+  const date = new Date(dateString)
+  date.setDate(date.getDate() + days)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 function formatDateForDisplay(dateString: string): string {
   if (!dateString) return ''
   
@@ -82,16 +101,13 @@ export default function SettingsPage() {
   // Form state for upcoming assignments
   const [newAssignmentHost, setNewAssignmentHost] = useState('')
   const [newAssignmentStartDate, setNewAssignmentStartDate] = useState(() => {
-    const nextWeek = new Date()
-    nextWeek.setDate(nextWeek.getDate() + 7)
-    return nextWeek.toISOString().split('T')[0]
+    // Use local date to avoid timezone issues
+    return addDaysToDateString(getLocalDateString(), 7)
   })
   const [newAssignmentEndDate, setNewAssignmentEndDate] = useState(() => {
-    const nextWeek = new Date()
-    nextWeek.setDate(nextWeek.getDate() + 7)
-    const endWeek = new Date(nextWeek)
-    endWeek.setDate(endWeek.getDate() + 6)
-    return endWeek.toISOString().split('T')[0]
+    // Use local date to avoid timezone issues
+    const startDate = addDaysToDateString(getLocalDateString(), 7)
+    return addDaysToDateString(startDate, 6)
   })
   const [isAddingAssignment, setIsAddingAssignment] = useState(false)
   
@@ -448,12 +464,11 @@ export default function SettingsPage() {
       
       // Reset form
       setNewAssignmentHost('')
-      const nextWeek = new Date()
-      nextWeek.setDate(nextWeek.getDate() + 7)
-      const endWeek = new Date(nextWeek)
-      endWeek.setDate(endWeek.getDate() + 6)
-      setNewAssignmentStartDate(nextWeek.toISOString().split('T')[0])
-      setNewAssignmentEndDate(endWeek.toISOString().split('T')[0])
+      // Use local date to avoid timezone issues
+      const startDate = addDaysToDateString(getLocalDateString(), 7)
+      const endDate = addDaysToDateString(startDate, 6)
+      setNewAssignmentStartDate(startDate)
+      setNewAssignmentEndDate(endDate)
       
       alert('Assignment added!')
       setIsAddingAssignment(false)

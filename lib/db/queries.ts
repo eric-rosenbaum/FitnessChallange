@@ -13,6 +13,16 @@ import type {
   ActiveWeek
 } from '@/types'
 
+// Helper function to get today's date in local timezone (YYYY-MM-DD format)
+// This prevents timezone issues where UTC date might be different from local date
+function getLocalDateString(): string {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 // Profiles
 export async function getProfile(userId: string): Promise<Profile | null> {
   const supabase = createClient() as SupabaseClient as SupabaseClient
@@ -161,7 +171,8 @@ export async function getActiveWeek(groupId: string): Promise<ActiveWeek | null>
   
   // Query week_assignments table directly instead of view (to avoid 406 errors)
   // Find the active week assignment (where current date is between start and end)
-  const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD format
+  // Use local date to avoid timezone issues (UTC might be tomorrow when it's still today locally)
+  const today = getLocalDateString()
   
   const { data: assignmentData, error: assignmentError } = await supabase
     .from('week_assignments')
@@ -344,7 +355,7 @@ export async function updateWeekAssignment(
 
 export async function getUpcomingAssignments(groupId: string, excludeCurrentAssignmentId?: string): Promise<WeekAssignment[]> {
   const supabase = createClient() as SupabaseClient
-  const today = new Date().toISOString().split('T')[0]
+  const today = getLocalDateString()
   
   let query = supabase
     .from('week_assignments')
@@ -385,11 +396,16 @@ export async function getAllAssignments(groupId: string): Promise<WeekAssignment
 
 export async function getUpcomingAssignmentForUser(userId: string, groupId: string, daysAhead: number = 3): Promise<WeekAssignment | null> {
   const supabase = createClient() as SupabaseClient
+  // Use local date to avoid timezone issues
   const today = new Date()
   const futureDate = new Date(today)
   futureDate.setDate(today.getDate() + daysAhead)
-  const todayStr = today.toISOString().split('T')[0]
-  const futureDateStr = futureDate.toISOString().split('T')[0]
+  const todayStr = getLocalDateString()
+  // Calculate future date string in local timezone
+  const futureYear = futureDate.getFullYear()
+  const futureMonth = String(futureDate.getMonth() + 1).padStart(2, '0')
+  const futureDay = String(futureDate.getDate()).padStart(2, '0')
+  const futureDateStr = `${futureYear}-${futureMonth}-${futureDay}`
   
   const { data, error } = await supabase
     .from('week_assignments')
@@ -687,26 +703,43 @@ export async function getLeaderboard(groupId: string): Promise<UserProgress[]> {
   
   const memberUserIds = (memberships as { user_id: string }[]).map(m => m.user_id)
   
-  // Get active week to find the challenge
-  const { data: activeWeek, error: weekError } = await supabase
-    .from('v_active_week')
-    .select('challenge_id')
+  // Get active week using local date (same logic as getActiveWeek)
+  // This ensures we use the same timezone logic as the rest of the app
+  const today = getLocalDateString()
+  
+  const { data: assignmentData, error: assignmentError } = await supabase
+    .from('week_assignments')
+    .select('id')
     .eq('group_id', groupId)
+    .lte('start_date', today)
+    .gte('end_date', today)
+    .order('start_date', { ascending: false })
+    .limit(1)
     .maybeSingle()
   
-  if (weekError) throw weekError
-  if (!activeWeek || !(activeWeek as { challenge_id: string | null }).challenge_id) return []
+  if (assignmentError) throw assignmentError
+  if (!assignmentData) return []
   
-  const challengeId = (activeWeek as { challenge_id: string }).challenge_id
+  // Get challenge for this assignment
+  const { data: challengeData, error: challengeError } = await supabase
+    .from('week_challenges')
+    .select('id')
+    .eq('week_assignment_id', assignmentData.id)
+    .maybeSingle()
+  
+  if (challengeError) throw challengeError
+  if (!challengeData) return []
+  
+  const challengeId = challengeData.id
   
   // Get challenge details
-  const { data: challenge, error: challengeError } = await supabase
+  const { data: challenge, error: challengeDetailsError } = await supabase
     .from('week_challenges')
     .select('*')
     .eq('id', challengeId)
     .single()
   
-  if (challengeError || !challenge) return []
+  if (challengeDetailsError || !challenge) return []
   
   // Get exercises
   const { data: exercises, error: exercisesError } = await supabase
@@ -803,24 +836,77 @@ export async function getLeaderboard(groupId: string): Promise<UserProgress[]> {
 
 export async function getActivityFeed(groupId: string, limit: number = 5): Promise<ActivityFeedItem[]> {
   const supabase = createClient() as SupabaseClient
-  const { data, error } = await supabase
-    .from('v_activity_feed_active_week')
-    .select('*')
+  
+  // Get active week using local date (same logic as getActiveWeek)
+  // This ensures we use the same timezone logic as the rest of the app
+  const today = getLocalDateString()
+  
+  const { data: assignmentData } = await supabase
+    .from('week_assignments')
+    .select('id')
     .eq('group_id', groupId)
+    .lte('start_date', today)
+    .gte('end_date', today)
+    .order('start_date', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  
+  if (!assignmentData) return []
+  
+  // Get challenge for this assignment
+  const { data: challengeData } = await supabase
+    .from('week_challenges')
+    .select('id')
+    .eq('week_assignment_id', assignmentData.id)
+    .maybeSingle()
+  
+  if (!challengeData) return []
+  
+  // Query logs directly for this challenge
+  const { data: logsData, error: logsError } = await supabase
+    .from('workout_logs')
+    .select('id, user_id, log_type, cardio_activity, cardio_amount, exercise_id, strength_reps, created_at')
+    .eq('week_challenge_id', challengeData.id)
+    .order('created_at', { ascending: false })
     .limit(limit)
   
-  if (error) throw error
-  if (!data) return []
+  if (logsError) throw logsError
+  if (!logsData || logsData.length === 0) return []
   
-  return (data as any[]).map((row: any) => ({
-    id: row.id,
-    user_id: row.user_id,
-    display_name: row.display_name,
-    log_type: row.log_type,
-    cardio_activity: row.cardio_activity || undefined,
-    cardio_amount: row.cardio_amount || undefined,
-    exercise_name: row.exercise_name || undefined,
-    strength_reps: row.strength_reps || undefined,
-    created_at: row.created_at,
+  // Get unique user IDs and exercise IDs
+  const userIds = Array.from(new Set((logsData as any[]).map(log => log.user_id)))
+  const exerciseIds = Array.from(new Set((logsData as any[]).map(log => log.exercise_id).filter(Boolean)))
+  
+  // Fetch profiles for all users
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, display_name')
+    .in('id', userIds)
+  
+  // Fetch exercise names if needed
+  let exercises: any[] = []
+  if (exerciseIds.length > 0) {
+    const { data: exercisesData } = await supabase
+      .from('strength_exercises')
+      .select('id, name')
+      .in('id', exerciseIds)
+    exercises = exercisesData || []
+  }
+  
+  // Create maps for quick lookup
+  const profileMap = new Map((profiles || []).map((p: any) => [p.id, p.display_name]))
+  const exerciseMap = new Map(exercises.map((e: any) => [e.id, e.name]))
+  
+  // Build result
+  return (logsData as any[]).map((log: any) => ({
+    id: log.id,
+    user_id: log.user_id,
+    display_name: profileMap.get(log.user_id) || 'Unknown',
+    log_type: log.log_type,
+    cardio_activity: log.cardio_activity || undefined,
+    cardio_amount: log.cardio_amount || undefined,
+    exercise_name: log.exercise_id ? exerciseMap.get(log.exercise_id) || undefined : undefined,
+    strength_reps: log.strength_reps || undefined,
+    created_at: log.created_at,
   }))
 }
