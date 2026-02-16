@@ -721,16 +721,17 @@ export async function getLeaderboard(groupId: string): Promise<UserProgress[]> {
   if (!assignmentData) return []
   
   // Get challenge for this assignment
+  const assignmentId = (assignmentData as any).id
   const { data: challengeData, error: challengeError } = await supabase
     .from('week_challenges')
     .select('id')
-    .eq('week_assignment_id', assignmentData.id)
+    .eq('week_assignment_id', assignmentId)
     .maybeSingle()
   
   if (challengeError) throw challengeError
   if (!challengeData) return []
   
-  const challengeId = challengeData.id
+  const challengeId = (challengeData as any).id
   
   // Get challenge details
   const { data: challenge, error: challengeDetailsError } = await supabase
@@ -854,19 +855,21 @@ export async function getActivityFeed(groupId: string, limit: number = 5): Promi
   if (!assignmentData) return []
   
   // Get challenge for this assignment
+  const assignmentId = (assignmentData as any).id
   const { data: challengeData } = await supabase
     .from('week_challenges')
     .select('id')
-    .eq('week_assignment_id', assignmentData.id)
+    .eq('week_assignment_id', assignmentId)
     .maybeSingle()
   
   if (!challengeData) return []
   
   // Query logs directly for this challenge
+  const challengeId = (challengeData as any).id
   const { data: logsData, error: logsError } = await supabase
     .from('workout_logs')
     .select('id, user_id, log_type, cardio_activity, cardio_amount, exercise_id, strength_reps, created_at')
-    .eq('week_challenge_id', challengeData.id)
+    .eq('week_challenge_id', challengeId)
     .order('created_at', { ascending: false })
     .limit(limit)
   
