@@ -8,6 +8,7 @@ import ProgressCard from '@/components/ProgressCard'
 import GroupProgressCard from '@/components/GroupProgressCard'
 import Leaderboard from '@/components/Leaderboard'
 import ActivityFeed from '@/components/ActivityFeed'
+import ProgressOverTimeChart from '@/components/ProgressOverTimeChart'
 import EmptyState from '@/components/EmptyState'
 import HostPromptCard from '@/components/HostPromptCard'
 import WaitingForHostCard from '@/components/WaitingForHostCard'
@@ -357,6 +358,16 @@ function HomePageContent() {
           {activityFeed.length > 0 && (
             <ActivityFeed feedItems={activityFeed} challenge={activeWeek?.challenge} groupId={group.id} />
           )}
+          {activeWeek?.challenge && allProgress.length > 0 && (
+            <ProgressOverTimeChart
+              logs={logs}
+              challenge={activeWeek.challenge}
+              exercises={exercises.length > 0 ? exercises : activeWeek.exercises}
+              weekStartDate={activeWeek.week_assignment.start_date}
+              weekEndDate={activeWeek.week_assignment.end_date}
+              progressList={allProgress}
+            />
+          )}
         </div>
         
         {/* Desktop: Two-column layout */}
@@ -398,6 +409,16 @@ function HomePageContent() {
               </>
             )}
             <ActivityFeed feedItems={activityFeed} challenge={activeWeek?.challenge} groupId={group.id} />
+            {activeWeek?.challenge && allProgress.length > 0 && (
+              <ProgressOverTimeChart
+                logs={logs}
+                challenge={activeWeek.challenge}
+                exercises={exercises.length > 0 ? exercises : activeWeek.exercises}
+                weekStartDate={activeWeek.week_assignment.start_date}
+                weekEndDate={activeWeek.week_assignment.end_date}
+                progressList={allProgress}
+              />
+            )}
           </div>
           <div className="space-y-4">
             {activeWeek?.challenge && (
