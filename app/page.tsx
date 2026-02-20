@@ -13,6 +13,7 @@ import EmptyState from '@/components/EmptyState'
 import HostPromptCard from '@/components/HostPromptCard'
 import WaitingForHostCard from '@/components/WaitingForHostCard'
 import UpcomingHostBanner from '@/components/UpcomingHostBanner'
+import SpectatorBanner from '@/components/SpectatorBanner'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import { useApp } from '@/context/AppContext'
 import { useUserGroup } from '@/lib/hooks/useUserGroup'
@@ -40,6 +41,7 @@ function HomePageContent() {
   const [activityFeed, setActivityFeed] = useState<ActivityFeedItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [numberOfMembers, setNumberOfMembers] = useState(1)
+  const [participantUserIds, setParticipantUserIds] = useState<string[]>([])
   const [upcomingAssignment, setUpcomingAssignment] = useState<any>(null)
 
   // Redirect if no user
@@ -71,13 +73,30 @@ function HomePageContent() {
   }, [user, authLoading, router])
 
   // Fetch number of members (always fetch this when group is available)
+  // Only count participants, not spectators
   useEffect(() => {
     if (group?.id) {
       getGroupMemberships(group.id).then((memberships) => {
-        console.log('[HomePage] Fetched memberships:', memberships.length, 'members')
-        setNumberOfMembers(memberships.length)
+        // Filter out spectators (handle case where member_type might not exist)
+        const participants = memberships.filter(m => 
+          !m.member_type || m.member_type !== 'spectator'
+        )
+        const participantCount = participants.length
+        const participantIds = participants.map(m => m.user_id)
+        console.log('[HomePage] Fetched memberships:', memberships.length, 'total members,', participantCount, 'participants')
+        setNumberOfMembers(participantCount)
+        setParticipantUserIds(participantIds)
       }).catch((error) => {
         console.error('[HomePage] Error fetching memberships:', error)
+        // Fallback: if error, assume all members are participants
+        getGroupMemberships(group.id).then((memberships) => {
+          setNumberOfMembers(memberships.length)
+          setParticipantUserIds(memberships.map(m => m.user_id))
+        }).catch(() => {
+          // If still fails, set defaults
+          setNumberOfMembers(1)
+          setParticipantUserIds([])
+        })
       })
     }
   }, [group?.id])
@@ -148,21 +167,41 @@ function HomePageContent() {
           setCurrentUserProgress(userProgress)
 
           // Get leaderboard
-          const leaderboard = await getLeaderboard(group.id)
-          setAllProgress(leaderboard)
+          try {
+            const leaderboard = await getLeaderboard(group.id)
+            setAllProgress(leaderboard)
+          } catch (error) {
+            console.error('[HomePage] Error fetching leaderboard:', error)
+            setAllProgress([])
+          }
 
           // Get activity feed
-          const feed = await getActivityFeed(group.id, 5)
-          setActivityFeed(feed)
+          try {
+            const feed = await getActivityFeed(group.id, 5)
+            setActivityFeed(feed)
+          } catch (error) {
+            console.error('[HomePage] Error fetching activity feed:', error)
+            setActivityFeed([])
+          }
         } else {
           setChallenge(null)
           setExercises([])
           // Still show leaderboard and activity feed even without challenge
           if (weekData?.week_assignment) {
-            const leaderboard = await getLeaderboard(group.id)
-            setAllProgress(leaderboard)
-            const feed = await getActivityFeed(group.id, 5)
-            setActivityFeed(feed)
+            try {
+              const leaderboard = await getLeaderboard(group.id)
+              setAllProgress(leaderboard)
+            } catch (error) {
+              console.error('[HomePage] Error fetching leaderboard:', error)
+              setAllProgress([])
+            }
+            try {
+              const feed = await getActivityFeed(group.id, 5)
+              setActivityFeed(feed)
+            } catch (error) {
+              console.error('[HomePage] Error fetching activity feed:', error)
+              setActivityFeed([])
+            }
           }
         }
       } catch (error) {
@@ -270,6 +309,8 @@ function HomePageContent() {
 
   const isHost = activeWeek?.week_assignment?.host_user_id === user?.id
   const isAdmin = membership?.role === 'admin'
+  // Handle case where member_type might not exist yet (migration not run)
+  const isSpectator = membership?.member_type === 'spectator'
   const showHostPrompt = isHost && activeWeek?.week_assignment && !activeWeek?.challenge
   const showWaitingForHost = !isHost && activeWeek?.week_assignment && !activeWeek?.challenge && activeWeek?.host_name
 
@@ -305,6 +346,7 @@ function HomePageContent() {
           <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
         {/* Mobile: Vertical stack */}
         <div className="lg:hidden space-y-3 sm:space-y-4">
+          {isSpectator && <SpectatorBanner />}
           {upcomingAssignment && (
             <UpcomingHostBanner weekAssignment={upcomingAssignment} />
           )}
@@ -317,7 +359,7 @@ function HomePageContent() {
               hostName={activeWeek.host_name}
             />
           )}
-          {activeWeek?.challenge && currentUserProgress && (
+          {activeWeek?.challenge && currentUserProgress && !isSpectator && (
             <>
               <ProgressCard
                 progress={currentUserProgress}
@@ -342,7 +384,7 @@ function HomePageContent() {
               exercises={exercises.length > 0 ? exercises : activeWeek.exercises}
               weekStartDate={activeWeek.week_assignment.start_date}
               weekEndDate={activeWeek.week_assignment.end_date}
-              logs={logs}
+              logs={participantUserIds.length > 0 ? logs.filter(log => participantUserIds.includes(log.user_id)) : logs}
               numberOfMembers={numberOfMembers}
             />
           )}
@@ -360,7 +402,7 @@ function HomePageContent() {
           )}
           {activeWeek?.challenge && allProgress.length > 0 && (
             <ProgressOverTimeChart
-              logs={logs}
+              logs={participantUserIds.length > 0 ? logs.filter(log => participantUserIds.includes(log.user_id)) : logs}
               challenge={activeWeek.challenge}
               exercises={exercises.length > 0 ? exercises : activeWeek.exercises}
               weekStartDate={activeWeek.week_assignment.start_date}
@@ -373,6 +415,7 @@ function HomePageContent() {
         {/* Desktop: Two-column layout */}
         <div className="hidden lg:block space-y-4">
           {/* Full-width banner cards at top */}
+          {isSpectator && <SpectatorBanner />}
           {upcomingAssignment && (
             <UpcomingHostBanner weekAssignment={upcomingAssignment} />
           )}
@@ -389,7 +432,7 @@ function HomePageContent() {
           {/* Two-column grid for main content */}
           <div className="grid lg:grid-cols-2 lg:gap-6">
             <div className="space-y-4">
-              {activeWeek?.challenge && currentUserProgress && (
+              {activeWeek?.challenge && currentUserProgress && !isSpectator && (
               <>
                 <ProgressCard
                   progress={currentUserProgress}
@@ -411,7 +454,7 @@ function HomePageContent() {
             <ActivityFeed feedItems={activityFeed} challenge={activeWeek?.challenge} groupId={group.id} />
             {activeWeek?.challenge && allProgress.length > 0 && (
               <ProgressOverTimeChart
-                logs={logs}
+                logs={participantUserIds.length > 0 ? logs.filter(log => participantUserIds.includes(log.user_id)) : logs}
                 challenge={activeWeek.challenge}
                 exercises={exercises.length > 0 ? exercises : activeWeek.exercises}
                 weekStartDate={activeWeek.week_assignment.start_date}
@@ -427,7 +470,7 @@ function HomePageContent() {
                 exercises={exercises.length > 0 ? exercises : activeWeek.exercises}
                 weekStartDate={activeWeek.week_assignment.start_date}
                 weekEndDate={activeWeek.week_assignment.end_date}
-                logs={logs}
+                logs={participantUserIds.length > 0 ? logs.filter(log => participantUserIds.includes(log.user_id)) : logs}
                 numberOfMembers={numberOfMembers}
               />
             )}

@@ -4,6 +4,7 @@ export type CardioActivity = 'run' | 'walk' | 'bike' | 'other'
 export type CardioMetric = 'miles' | 'minutes'
 export type LogType = 'cardio' | 'strength'
 export type UserRole = 'admin' | 'member'
+export type MemberType = 'participant' | 'spectator'
 
 export interface Profile {
   id: string
@@ -24,6 +25,7 @@ export interface GroupMembership {
   group_id: string
   user_id: string
   role: UserRole
+  member_type: MemberType
   created_at: string
 }
 

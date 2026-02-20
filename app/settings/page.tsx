@@ -12,6 +12,7 @@ import {
   getGroupMemberships,
   updateGroupName,
   removeMember,
+  updateMemberType,
   createWeekAssignment,
   updateWeekAssignment,
   getActiveWeek,
@@ -122,6 +123,11 @@ export default function SettingsPage() {
   const [newCurrentStartDate, setNewCurrentStartDate] = useState('')
   const [newCurrentEndDate, setNewCurrentEndDate] = useState('')
   const [isUpdatingDates, setIsUpdatingDates] = useState(false)
+  
+  // Member type modal state
+  const [editingMemberType, setEditingMemberType] = useState<string | null>(null)
+  const [selectedMemberType, setSelectedMemberType] = useState<'participant' | 'spectator'>('participant')
+  const [isUpdatingMemberType, setIsUpdatingMemberType] = useState(false)
   
   const currentUserMembership = memberships.find(m => m.user_id === user?.id)
   const isAdmin = currentUserMembership?.role === 'admin'
@@ -254,6 +260,24 @@ export default function SettingsPage() {
       } catch (error: any) {
         alert('Error: ' + (error.message || 'Failed to remove member'))
       }
+    }
+  }
+  
+  const handleUpdateMemberType = async (userId: string, newMemberType: 'participant' | 'spectator') => {
+    if (!group || !isAdmin) return
+    
+    setIsUpdatingMemberType(true)
+    try {
+      await updateMemberType(group.id, userId, newMemberType)
+      // Refresh memberships
+      const updated = await getGroupMemberships(group.id)
+      setMemberships(updated)
+      setEditingMemberType(null)
+      alert('Member type updated!')
+    } catch (error: any) {
+      alert('Error: ' + (error.message || 'Failed to update member type'))
+    } finally {
+      setIsUpdatingMemberType(false)
     }
   }
   
@@ -570,6 +594,25 @@ export default function SettingsPage() {
                     <span className="text-xs px-2 py-1 bg-green-50 text-[#8B4513] rounded-lg font-medium border border-green-200/50">
                       {member.role}
                     </span>
+                    <span className="text-xs px-2 py-1 bg-blue-50 text-blue-700 rounded-lg font-medium border border-blue-200/50">
+                      {member.member_type === 'spectator' ? 'Spectator' : 'Participant'}
+                    </span>
+                    {isAdmin && (
+                      <button
+                        onClick={() => {
+                          const currentType = member.member_type || 'participant'
+                          setSelectedMemberType(currentType === 'spectator' ? 'spectator' : 'participant')
+                          setEditingMemberType(member.user_id)
+                        }}
+                        className="p-1.5 text-gray-600 hover:text-[#8B4513] hover:bg-gray-100 rounded-lg transition-colors"
+                        title="Change member type"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      </button>
+                    )}
                     {memberships.length > 1 && (
                       member.user_id === user?.id ? (
                         <button
@@ -591,6 +634,90 @@ export default function SettingsPage() {
                 </div>
               ))}
             </div>
+            
+            {/* Member Type Modal */}
+            {editingMemberType && (
+              <div 
+                className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+                onClick={(e) => {
+                  // Close modal if clicking on backdrop
+                  if (e.target === e.currentTarget) {
+                    setEditingMemberType(null)
+                  }
+                }}
+              >
+                <div 
+                  className="glass-card rounded-2xl soft-shadow-lg p-6 border border-red-100/30 max-w-md w-full relative z-10"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <h3 className="text-xl font-semibold text-gray-800 mb-4 tracking-tight">
+                    Change Member Type
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    {membersWithProfiles.find(m => m.user_id === editingMemberType)?.profile?.display_name || 'Unknown'}
+                  </p>
+                  <div className="space-y-3 mb-6">
+                    <label 
+                      className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors"
+                      onClick={() => setSelectedMemberType('participant')}
+                    >
+                      <input
+                        type="radio"
+                        name="memberType"
+                        value="participant"
+                        checked={selectedMemberType === 'participant'}
+                        onChange={() => setSelectedMemberType('participant')}
+                        className="w-4 h-4 text-[#8B4513] cursor-pointer"
+                      />
+                      <div>
+                        <div className="font-medium text-gray-800">Participant</div>
+                        <div className="text-xs text-gray-600">Can log exercises and contribute to group goals</div>
+                      </div>
+                    </label>
+                    <label 
+                      className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors"
+                      onClick={() => setSelectedMemberType('spectator')}
+                    >
+                      <input
+                        type="radio"
+                        name="memberType"
+                        value="spectator"
+                        checked={selectedMemberType === 'spectator'}
+                        onChange={() => setSelectedMemberType('spectator')}
+                        className="w-4 h-4 text-[#8B4513] cursor-pointer"
+                      />
+                      <div>
+                        <div className="font-medium text-gray-800">Spectator</div>
+                        <div className="text-xs text-gray-600">Can view group activity but cannot log exercises</div>
+                      </div>
+                    </label>
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setEditingMemberType(null)
+                      }}
+                      className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium transition-colors cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (editingMemberType) {
+                          handleUpdateMemberType(editingMemberType, selectedMemberType)
+                        }
+                      }}
+                      disabled={isUpdatingMemberType}
+                      className="flex-1 px-4 py-3 bg-[#8B4513] text-white rounded-xl hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed soft-shadow font-medium transition-all cursor-pointer"
+                    >
+                      {isUpdatingMemberType ? 'Updating...' : 'Update'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
             
             {/* Add Member */}
             <div className="pt-4 border-t border-gray-200/50">

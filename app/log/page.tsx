@@ -26,9 +26,16 @@ function LogPageContent() {
   const searchParams = useSearchParams()
   const editLogId = searchParams.get('edit')
   const { user, logs, refreshLogs, challenge, exercises } = useApp()
-  const { group, isLoading: groupLoading } = useUserGroup()
+  const { group, membership, isLoading: groupLoading } = useUserGroup()
   const [activeWeek, setActiveWeek] = useState<any>(null)
   const [isLoadingWeek, setIsLoadingWeek] = useState(true)
+  
+  // Redirect spectators away from log page
+  useEffect(() => {
+    if (membership && membership.member_type === 'spectator') {
+      router.push('/')
+    }
+  }, [membership, router])
   const [activeTab, setActiveTab] = useState<'cardio' | 'strength'>('cardio')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null)

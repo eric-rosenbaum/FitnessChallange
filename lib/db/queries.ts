@@ -159,6 +159,17 @@ export async function removeMember(groupId: string, userId: string): Promise<voi
   if (error) throw error
 }
 
+export async function updateMemberType(groupId: string, userId: string, memberType: 'participant' | 'spectator'): Promise<void> {
+  const supabase = createClient() as SupabaseClient
+  const { error } = await supabase
+    .from('group_memberships')
+    .update({ member_type: memberType })
+    .eq('group_id', groupId)
+    .eq('user_id', userId)
+  
+  if (error) throw error
+}
+
 export async function addMemberByEmail(groupId: string, email: string): Promise<void> {
   // In production, this would send an invite email
   // For now, we'll just return (invite flow would be separate)
@@ -693,15 +704,39 @@ export async function getLeaderboard(groupId: string): Promise<UserProgress[]> {
   const supabase = createClient() as SupabaseClient
   
   // First, get all current group members
-  const { data: memberships, error: membershipError } = await supabase
+  // Try to exclude spectators, but fall back to all members if member_type doesn't exist yet
+  let memberships: any[] = []
+  let membershipError: any = null
+  
+  // Try querying with member_type filter first
+  const { data: membershipsWithType, error: errorWithType } = await supabase
     .from('group_memberships')
-    .select('user_id')
+    .select('user_id, member_type')
     .eq('group_id', groupId)
+  
+  if (!errorWithType && membershipsWithType) {
+    // Filter out spectators in JavaScript (works even if column doesn't exist)
+    memberships = membershipsWithType.filter((m: any) => 
+      !m.member_type || m.member_type !== 'spectator'
+    )
+  } else {
+    // Fallback: if member_type column doesn't exist, get all members
+    const { data: allMemberships, error: errorAll } = await supabase
+      .from('group_memberships')
+      .select('user_id')
+      .eq('group_id', groupId)
+    
+    if (errorAll) {
+      membershipError = errorAll
+    } else {
+      memberships = allMemberships || []
+    }
+  }
   
   if (membershipError) throw membershipError
   if (!memberships || memberships.length === 0) return []
   
-  const memberUserIds = (memberships as { user_id: string }[]).map(m => m.user_id)
+  const memberUserIds = memberships.map((m: any) => m.user_id)
   
   // Get active week using local date (same logic as getActiveWeek)
   // This ensures we use the same timezone logic as the rest of the app
