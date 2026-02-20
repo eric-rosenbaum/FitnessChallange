@@ -32,11 +32,11 @@ export const dummyGroup: Group = {
 }
 
 export const dummyMemberships: GroupMembership[] = [
-  { id: 'm1', group_id: 'group-1', user_id: 'user-1', role: 'admin', created_at: '2024-01-01T00:00:00Z' },
-  { id: 'm2', group_id: 'group-1', user_id: 'user-2', role: 'member', created_at: '2024-01-01T00:00:00Z' },
-  { id: 'm3', group_id: 'group-1', user_id: 'user-3', role: 'member', created_at: '2024-01-01T00:00:00Z' },
-  { id: 'm4', group_id: 'group-1', user_id: 'user-4', role: 'member', created_at: '2024-01-01T00:00:00Z' },
-  { id: 'm5', group_id: 'group-1', user_id: 'user-5', role: 'member', created_at: '2024-01-01T00:00:00Z' },
+  { id: 'm1', group_id: 'group-1', user_id: 'user-1', role: 'admin', member_type: 'participant', created_at: '2024-01-01T00:00:00Z' },
+  { id: 'm2', group_id: 'group-1', user_id: 'user-2', role: 'member', member_type: 'participant', created_at: '2024-01-01T00:00:00Z' },
+  { id: 'm3', group_id: 'group-1', user_id: 'user-3', role: 'member', member_type: 'participant', created_at: '2024-01-01T00:00:00Z' },
+  { id: 'm4', group_id: 'group-1', user_id: 'user-4', role: 'member', member_type: 'participant', created_at: '2024-01-01T00:00:00Z' },
+  { id: 'm5', group_id: 'group-1', user_id: 'user-5', role: 'member', member_type: 'participant', created_at: '2024-01-01T00:00:00Z' },
 ]
 
 // Current week: Jan 15-21, 2024

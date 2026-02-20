@@ -163,6 +163,7 @@ export async function updateMemberType(groupId: string, userId: string, memberTy
   const supabase = createClient() as SupabaseClient
   const { error } = await supabase
     .from('group_memberships')
+    // @ts-expect-error - Supabase type inference issue with Database type (member_type column not in types yet)
     .update({ member_type: memberType })
     .eq('group_id', groupId)
     .eq('user_id', userId)
