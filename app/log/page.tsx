@@ -6,8 +6,8 @@ import Link from 'next/link'
 import type { CardioActivity } from '@/types'
 import { useApp } from '@/context/AppContext'
 import { useUserGroup } from '@/lib/hooks/useUserGroup'
-import { getActiveWeek } from '@/lib/db/queries'
-import { createWorkoutLog, updateWorkoutLog } from '@/lib/db/queries'
+import { getActiveWeek, getActivePunishmentForUser } from '@/lib/db/queries'
+import { createWorkoutLog, updateWorkoutLog, createPunishmentLog } from '@/lib/db/queries'
 import { createClient } from '@/lib/supabase/client'
 import LoadingSpinner from '@/components/LoadingSpinner'
 
@@ -29,6 +29,8 @@ function LogPageContent() {
   const { group, membership, isLoading: groupLoading } = useUserGroup()
   const [activeWeek, setActiveWeek] = useState<any>(null)
   const [isLoadingWeek, setIsLoadingWeek] = useState(true)
+  const [activePunishment, setActivePunishment] = useState<any>(null)
+  const [isLoggingPunishment, setIsLoggingPunishment] = useState(false)
   
   // Redirect spectators away from log page
   useEffect(() => {
@@ -48,23 +50,27 @@ function LogPageContent() {
   
   const editingLog = editLogId ? logs.find(log => log.id === editLogId && log.user_id === user?.id) : null
   
-  // Fetch active week
+  // Fetch active week and punishment
   useEffect(() => {
-    if (group) {
+    if (group && user) {
       setIsLoadingWeek(true)
-      getActiveWeek(group.id)
-        .then((week) => {
+      Promise.all([
+        getActiveWeek(group.id),
+        getActivePunishmentForUser(user.id, group.id)
+      ])
+        .then(([week, punishment]) => {
           setActiveWeek(week)
+          setActivePunishment(punishment)
           setIsLoadingWeek(false)
         })
         .catch((error) => {
-          console.error('Error fetching active week:', error)
+          console.error('Error fetching data:', error)
           setIsLoadingWeek(false)
         })
     } else if (!groupLoading) {
       setIsLoadingWeek(false)
     }
-  }, [group, groupLoading])
+  }, [group, groupLoading, user])
   
   // Form state
   const [cardioActivity, setCardioActivity] = useState<CardioActivity>('run')
@@ -91,13 +97,14 @@ function LogPageContent() {
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!user || !group || !activeWeek?.challenge) return
+    if (!user || !group) return
+    if (!activeWeek?.challenge && !canLogPunishment) return
     
     setIsSubmitting(true)
     
     try {
       if (editingLog) {
-        // Update existing log
+        // Update existing log (always challenge log for editing)
         await updateWorkoutLog(editingLog.id, {
           logged_at: loggedDate,
           ...(activeTab === 'cardio' ? {
@@ -109,29 +116,107 @@ function LogPageContent() {
           }),
         })
       } else {
-        // Create new log
-        await createWorkoutLog({
-          group_id: group.id,
-          week_challenge_id: activeWeek.challenge.id,
-          user_id: user.id,
-          logged_at: loggedDate,
-          log_type: activeTab,
-          ...(activeTab === 'cardio' ? {
-            cardio_activity: cardioActivity,
-            cardio_amount: parseFloat(cardioAmount),
-          } : {
-            exercise_id: exerciseId,
-            strength_reps: parseInt(strengthReps),
-          }),
-        })
+        // Determine which source to log to based on selected exercise
+        if (activeTab === 'strength') {
+          const selectedExercise = allExercises.find((ex: any) => ex.id === exerciseId)
+          if (selectedExercise?.source === 'punishment' && activePunishment) {
+            // Log to punishment
+            await createPunishmentLog(
+              group.id,
+              activePunishment.punishment.id,
+              user.id,
+              loggedDate,
+              'strength',
+              undefined,
+              undefined,
+              exerciseId,
+              parseInt(strengthReps)
+            )
+          } else if (activeWeek?.challenge) {
+            // Log to challenge
+            await createWorkoutLog({
+              group_id: group.id,
+              week_challenge_id: activeWeek.challenge.id,
+              user_id: user.id,
+              logged_at: loggedDate,
+              log_type: 'strength',
+              exercise_id: exerciseId,
+              strength_reps: parseInt(strengthReps),
+            })
+          }
+        } else {
+          // Cardio: prefer challenge if it exists, otherwise punishment
+          if (activeWeek?.challenge?.cardio_target) {
+            await createWorkoutLog({
+              group_id: group.id,
+              week_challenge_id: activeWeek.challenge.id,
+              user_id: user.id,
+              logged_at: loggedDate,
+              log_type: 'cardio',
+              cardio_activity: cardioActivity,
+              cardio_amount: parseFloat(cardioAmount),
+            })
+          } else if (activePunishment?.punishment.cardio_target) {
+            await createPunishmentLog(
+              group.id,
+              activePunishment.punishment.id,
+              user.id,
+              loggedDate,
+              'cardio',
+              cardioActivity,
+              parseFloat(cardioAmount)
+            )
+          }
+        }
       }
       
-      // Refresh logs
-      await refreshLogs(activeWeek.challenge.id)
+      // Refresh logs if challenge exists
+      if (activeWeek?.challenge) {
+        await refreshLogs(activeWeek.challenge.id)
+      }
       router.push('/')
     } catch (error: any) {
       alert('Error: ' + (error.message || 'Failed to save log'))
       setIsSubmitting(false)
+    }
+  }
+  
+  const handleSubmitPunishment = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!user || !group || !activePunishment) return
+    
+    // Validate that punishment has the selected option
+    if (activeTab === 'cardio' && !activePunishment.punishment.cardio_target) {
+      alert('This punishment does not have cardio targets')
+      return
+    }
+    if (activeTab === 'strength') {
+      const selectedExercise = allExercises.find((ex: any) => ex.id === exerciseId && ex.source === 'punishment')
+      if (!selectedExercise) {
+        alert('Please select a punishment exercise')
+        return
+      }
+    }
+    
+    setIsLoggingPunishment(true)
+    
+    try {
+      await createPunishmentLog(
+        group.id,
+        activePunishment.punishment.id,
+        user.id,
+        loggedDate,
+        activeTab,
+        activeTab === 'cardio' ? cardioActivity : undefined,
+        activeTab === 'cardio' ? parseFloat(cardioAmount) : undefined,
+        activeTab === 'strength' ? exerciseId : undefined,
+        activeTab === 'strength' ? parseInt(strengthReps) : undefined
+      )
+      
+      router.push('/')
+    } catch (error: any) {
+      alert('Error: ' + (error.message || 'Failed to save punishment log'))
+      setIsLoggingPunishment(false)
     }
   }
   
@@ -140,8 +225,10 @@ function LogPageContent() {
     return <LoadingSpinner />
   }
   
-  // Show error/empty state only after loading is complete
-  if (!activeWeek?.challenge) {
+  // Check if user has active punishment - if so, they can log punishment even without challenge
+  const canLogPunishment = activePunishment && !editingLog
+  
+  if (!activeWeek?.challenge && !canLogPunishment) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="glass-card rounded-2xl soft-shadow-lg p-6 text-center max-w-md border border-red-100/30">
@@ -152,8 +239,38 @@ function LogPageContent() {
     )
   }
   
-  const metricLabel = activeWeek.challenge.cardio_metric === 'miles' ? 'Miles' : 'Minutes'
-  const currentExercises = exercises.length > 0 ? exercises : activeWeek.exercises
+  // Combine exercises from both challenge and punishment
+  const challengeExercises = exercises.length > 0 ? exercises : activeWeek?.exercises || []
+  const punishmentExercises = activePunishment?.exercises || []
+  
+  // Combine all exercises, marking their source
+  const allExercises = [
+    ...challengeExercises.map((ex: any) => ({ ...ex, source: 'challenge' })),
+    ...punishmentExercises.map((ex: any) => ({ ...ex, source: 'punishment' }))
+  ]
+  
+  // Determine cardio metric label (prefer challenge if both exist, otherwise use whichever is available)
+  const challengeCardioMetric = activeWeek?.challenge?.cardio_metric
+  const punishmentCardioMetric = activePunishment?.punishment.cardio_metric
+  const metricLabel = challengeCardioMetric
+    ? (challengeCardioMetric === 'miles' ? 'Miles' : 'Minutes')
+    : (punishmentCardioMetric === 'miles' ? 'Miles' : 'Minutes')
+  
+  // Determine if cardio/strength are available (from either source)
+  const hasCardio = !!(activeWeek?.challenge?.cardio_target || activePunishment?.punishment.cardio_target)
+  const hasStrength = allExercises.length > 0
+  
+  // If no cardio/strength available from either source, show message
+  if (!hasCardio && !hasStrength && !activeWeek?.challenge) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="glass-card rounded-2xl soft-shadow-lg p-6 text-center max-w-md border border-red-100/30">
+          <p className="text-gray-700 mb-4 font-medium">No exercises available</p>
+          <Link href="/" className="text-[#8B4513] hover:text-[#6B4423] hover:underline font-medium">Back to home</Link>
+        </div>
+      </div>
+    )
+  }
   
   return (
     <div className="min-h-screen">
@@ -192,7 +309,7 @@ function LogPageContent() {
           
           {/* Form */}
           <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 overflow-hidden">
-            {activeTab === 'cardio' ? (
+            {activeTab === 'cardio' && hasCardio ? (
               <>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -227,7 +344,7 @@ function LogPageContent() {
                   />
                 </div>
               </>
-            ) : (
+            ) : activeTab === 'strength' && hasStrength ? (
               <>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -241,9 +358,9 @@ function LogPageContent() {
                     required
                   >
                     <option value="">Select exercise</option>
-                    {currentExercises.map((ex: any) => (
+                    {allExercises.map((ex: any) => (
                       <option key={ex.id} value={ex.id}>
-                        {ex.name}
+                        {ex.name}{ex.source === 'punishment' ? ' (Punishment)' : ''}
                       </option>
                     ))}
                   </select>
@@ -263,6 +380,10 @@ function LogPageContent() {
                   />
                 </div>
               </>
+            ) : (
+              <div className="text-center py-4 text-gray-600">
+                {activeTab === 'cardio' ? 'Cardio is not available' : 'Strength exercises are not available'}
+              </div>
             )}
             
             <div className="w-full overflow-hidden">
@@ -291,20 +412,36 @@ function LogPageContent() {
               />
             </div>
             
-            <div className="flex gap-3 pt-4">
-              <Link
-                href="/"
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 text-center font-medium"
-              >
-                Cancel
-              </Link>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="flex-1 px-4 py-3 bg-[#8B4513] text-white rounded-xl hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed soft-shadow font-medium transition-all"
-              >
-                {isSubmitting ? 'Saving...' : editingLog ? 'Update' : 'Log Workout'}
-              </button>
+            <div className="flex flex-col gap-3 pt-4">
+              <div className="flex gap-3">
+                <Link
+                  href="/"
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 text-center font-medium"
+                >
+                  Cancel
+                </Link>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 px-4 py-3 bg-[#8B4513] text-white rounded-xl hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed soft-shadow font-medium transition-all"
+                >
+                  {isSubmitting ? 'Saving...' : editingLog ? 'Update' : 'Log Workout'}
+                </button>
+              </div>
+              {activePunishment && !editingLog && (
+                <button
+                  type="button"
+                  onClick={handleSubmitPunishment}
+                  disabled={isLoggingPunishment || isSubmitting}
+                  className="w-full px-4 py-3 text-white rounded-xl hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed soft-shadow font-medium transition-all"
+                  style={{ 
+                    background: 'linear-gradient(to right, rgba(254, 226, 226, 0.9), rgba(254, 202, 202, 0.9))',
+                    color: '#991b1b'
+                  }}
+                >
+                  {isLoggingPunishment ? 'Saving...' : 'Log Punishment'}
+                </button>
+              )}
             </div>
           </form>
         </div>

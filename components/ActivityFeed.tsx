@@ -33,18 +33,26 @@ export default function ActivityFeed({ feedItems, challenge, groupId }: Activity
   }
 
   const formatActivity = (item: ActivityFeedItem) => {
+    let activityText = ''
     if (item.log_type === 'cardio') {
       const activity = item.cardio_activity || 'activity'
       const amount = item.cardio_amount || 0
       const metric = challenge?.cardio_metric === 'minutes'
         ? (amount === 1 ? 'minute' : 'minutes')
         : (amount === 1 ? 'mile' : 'miles')
-      return `logged ${amount} ${metric} ${activity}`
+      activityText = `logged ${amount} ${metric} ${activity}`
     } else {
       const exercise = item.exercise_name || 'exercise'
       const reps = item.strength_reps || 0
-      return `logged ${reps} ${exercise} reps`
+      activityText = `logged ${reps} ${exercise} reps`
     }
+    
+    // Add punishment tag if applicable
+    if (item.is_punishment) {
+      activityText += ' (punishment)'
+    }
+    
+    return activityText
   }
 
   const handleSeeAll = async () => {

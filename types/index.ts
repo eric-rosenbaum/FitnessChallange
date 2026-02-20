@@ -98,6 +98,7 @@ export interface ActivityFeedItem {
   exercise_name?: string
   strength_reps?: number
   created_at: string
+  is_punishment?: boolean // true if this is a punishment log
 }
 
 export interface ActiveWeek {
@@ -105,4 +106,67 @@ export interface ActiveWeek {
   challenge?: WeekChallenge
   exercises: StrengthExercise[]
   host_name: string
+}
+
+// Punishment types
+export interface Punishment {
+  id: string
+  group_id: string
+  assigned_by: string
+  cardio_metric?: CardioMetric
+  cardio_target?: number
+  start_date: string // ISO date string
+  end_date: string // ISO date string
+  created_at: string
+}
+
+export interface PunishmentExercise {
+  id: string
+  punishment_id: string
+  name: string
+  target_reps: number
+  sort_order: number
+  created_at: string
+}
+
+export interface PunishmentAssignment {
+  id: string
+  punishment_id: string
+  user_id: string
+  created_at: string
+}
+
+export interface PunishmentLog {
+  id: string
+  group_id: string
+  punishment_id: string
+  user_id: string
+  logged_at: string // ISO date string
+  created_at: string
+  log_type: LogType
+  // Cardio fields (nullable if strength)
+  cardio_activity?: CardioActivity
+  cardio_amount?: number
+  // Strength fields (nullable if cardio)
+  exercise_id?: string
+  strength_reps?: number
+  // Other
+  note?: string
+}
+
+export interface ActivePunishment {
+  punishment: Punishment
+  exercises: PunishmentExercise[]
+  assigned_user_ids: string[]
+}
+
+export interface PunishmentProgress {
+  user_id: string
+  display_name: string
+  cardio_total: number
+  cardio_progress: number
+  strength_overall_progress: number
+  total_progress: number
+  last_activity_at?: string
+  exercise_totals: Record<string, number> // exercise_id -> total reps
 }

@@ -9,6 +9,7 @@ import GroupProgressCard from '@/components/GroupProgressCard'
 import Leaderboard from '@/components/Leaderboard'
 import ActivityFeed from '@/components/ActivityFeed'
 import ProgressOverTimeChart from '@/components/ProgressOverTimeChart'
+import PunishmentLeaderboard from '@/components/PunishmentLeaderboard'
 import EmptyState from '@/components/EmptyState'
 import HostPromptCard from '@/components/HostPromptCard'
 import WaitingForHostCard from '@/components/WaitingForHostCard'
@@ -26,9 +27,23 @@ import {
   getGroupMemberships,
   getUpcomingAssignmentForUser,
   getChallengeForAssignment,
+  getActivePunishmentForUser,
+  getPunishmentLogs,
+  getUserPunishmentProgress,
+  getPunishmentLeaderboard,
+  getAllPunishments,
 } from '@/lib/db/queries'
-import type { ActiveWeek, UserProgress, ActivityFeedItem } from '@/types'
+import type { ActiveWeek, UserProgress, ActivityFeedItem, ActivePunishment, PunishmentLog, PunishmentProgress } from '@/types'
 import { calculateUserProgress } from '@/lib/dummyData'
+
+// Helper function to get today's date in local timezone (YYYY-MM-DD format)
+function getLocalDateString(): string {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
 
 function HomePageContent() {
   const router = useRouter()
@@ -43,6 +58,11 @@ function HomePageContent() {
   const [numberOfMembers, setNumberOfMembers] = useState(1)
   const [participantUserIds, setParticipantUserIds] = useState<string[]>([])
   const [upcomingAssignment, setUpcomingAssignment] = useState<any>(null)
+  const [activePunishment, setActivePunishment] = useState<ActivePunishment | null>(null)
+  const [punishmentLogs, setPunishmentLogs] = useState<PunishmentLog[]>([])
+  const [punishmentProgress, setPunishmentProgress] = useState<PunishmentProgress | null>(null)
+  const [punishmentLeaderboard, setPunishmentLeaderboard] = useState<PunishmentProgress[]>([])
+  const [leaderboardPunishment, setLeaderboardPunishment] = useState<ActivePunishment | null>(null)
 
   // Redirect if no user
   useEffect(() => {
@@ -182,6 +202,51 @@ function HomePageContent() {
           } catch (error) {
             console.error('[HomePage] Error fetching activity feed:', error)
             setActivityFeed([])
+          }
+          
+          // Get active punishment for current user
+          try {
+            const punishment = await getActivePunishmentForUser(user.id, group.id)
+            if (punishment) {
+              setActivePunishment(punishment)
+              const logs = await getPunishmentLogs(punishment.punishment.id)
+              setPunishmentLogs(logs)
+              const progress = await getUserPunishmentProgress(user.id, punishment.punishment.id)
+              setPunishmentProgress(progress)
+              // Fetch leaderboard for this punishment so we can show same card as non-punished (leaderboard style)
+              const leaderboard = await getPunishmentLeaderboard(punishment.punishment.id)
+              setPunishmentLeaderboard(leaderboard)
+              setLeaderboardPunishment(punishment)
+            } else {
+              setActivePunishment(null)
+              setPunishmentLogs([])
+              setPunishmentProgress(null)
+              // User doesn't have punishment, check if anyone in group does
+              const allPunishments = await getAllPunishments(group.id)
+              const today = getLocalDateString()
+              const activePunishmentForLeaderboard = allPunishments.find(p => {
+                const start = p.punishment.start_date.split('T')[0]
+                const end = p.punishment.end_date.split('T')[0]
+                return today >= start && today <= end
+              })
+              
+              if (activePunishmentForLeaderboard) {
+                const leaderboard = await getPunishmentLeaderboard(activePunishmentForLeaderboard.punishment.id)
+                setPunishmentLeaderboard(leaderboard)
+                setLeaderboardPunishment(activePunishmentForLeaderboard)
+                // Also fetch logs for leaderboard
+                const logs = await getPunishmentLogs(activePunishmentForLeaderboard.punishment.id)
+                setPunishmentLogs(logs)
+              } else {
+                setPunishmentLeaderboard([])
+                setLeaderboardPunishment(null)
+              }
+            }
+          } catch (error) {
+            console.error('[HomePage] Error fetching punishment:', error)
+            setActivePunishment(null)
+            setPunishmentLeaderboard([])
+            setLeaderboardPunishment(null)
           }
         } else {
           setChallenge(null)
@@ -370,6 +435,16 @@ function HomePageContent() {
                 logs={logs.filter(log => log.user_id === user?.id)}
                 userId={user?.id ?? ''}
               />
+              {activePunishment && leaderboardPunishment && (
+                <PunishmentLeaderboard
+                  progressList={punishmentLeaderboard}
+                  currentUserId={user?.id ?? ''}
+                  logs={punishmentLogs}
+                  exercises={leaderboardPunishment.exercises}
+                  punishment={leaderboardPunishment.punishment}
+                  titleOverride="Punishment Progress"
+                />
+              )}
               <Link
                 href="/log"
                 className="block w-full px-4 py-3 bg-[#8B4513] text-white text-center font-medium rounded-xl soft-shadow hover:opacity-90 transition-all transform hover:scale-[1.02]"
@@ -386,6 +461,15 @@ function HomePageContent() {
               weekEndDate={activeWeek.week_assignment.end_date}
               logs={participantUserIds.length > 0 ? logs.filter(log => participantUserIds.includes(log.user_id)) : logs}
               numberOfMembers={numberOfMembers}
+            />
+          )}
+          {!activePunishment && punishmentLeaderboard.length > 0 && leaderboardPunishment && (
+            <PunishmentLeaderboard
+              progressList={punishmentLeaderboard}
+              currentUserId={user?.id || ''}
+              logs={punishmentLogs}
+              exercises={leaderboardPunishment.exercises}
+              punishment={leaderboardPunishment.punishment}
             />
           )}
           {allProgress.length > 0 && activeWeek?.challenge && (
@@ -443,6 +527,16 @@ function HomePageContent() {
                   logs={logs.filter(log => log.user_id === user?.id)}
                   userId={user?.id ?? ''}
                 />
+                {activePunishment && leaderboardPunishment && (
+                  <PunishmentLeaderboard
+                    progressList={punishmentLeaderboard}
+                    currentUserId={user?.id ?? ''}
+                    logs={punishmentLogs}
+                    exercises={leaderboardPunishment.exercises}
+                    punishment={leaderboardPunishment.punishment}
+                    titleOverride="Punishment Progress"
+                  />
+                )}
                 <Link
                   href="/log"
                   className="block w-full px-4 py-3 bg-[#8B4513] text-white text-center font-medium rounded-xl soft-shadow hover:opacity-90 transition-all transform hover:scale-[1.02]"
@@ -472,6 +566,15 @@ function HomePageContent() {
                 weekEndDate={activeWeek.week_assignment.end_date}
                 logs={participantUserIds.length > 0 ? logs.filter(log => participantUserIds.includes(log.user_id)) : logs}
                 numberOfMembers={numberOfMembers}
+              />
+            )}
+            {!activePunishment && punishmentLeaderboard.length > 0 && leaderboardPunishment && (
+              <PunishmentLeaderboard
+                progressList={punishmentLeaderboard}
+                currentUserId={user?.id || ''}
+                logs={punishmentLogs}
+                exercises={leaderboardPunishment.exercises}
+                punishment={leaderboardPunishment.punishment}
               />
             )}
             {allProgress.length > 0 && activeWeek?.challenge && (

@@ -20,8 +20,12 @@ import {
   getAllAssignments,
   getChallengeForAssignment,
   deleteWeekAssignment,
+  createPunishment,
+  getAllPunishments,
+  deletePunishment,
+  updatePunishment,
 } from '@/lib/db/queries'
-import type { GroupMembership, ActiveWeek, WeekAssignment } from '@/types'
+import type { GroupMembership, ActiveWeek, WeekAssignment, ActivePunishment } from '@/types'
 
 // Helper function to extract date in YYYY-MM-DD format, handling timezone issues
 // This function ensures we always get the date as YYYY-MM-DD without timezone conversion
@@ -98,6 +102,11 @@ export default function SettingsPage() {
   const [activeWeek, setActiveWeek] = useState<ActiveWeek | null>(null)
   const [upcomingAssignments, setUpcomingAssignments] = useState<WeekAssignment[]>([])
   const [assignmentChallenges, setAssignmentChallenges] = useState<Record<string, { challenge: any; exercises: any[] } | null>>({})
+  const [allPunishments, setAllPunishments] = useState<ActivePunishment[]>([])
+  const [showPunishmentForm, setShowPunishmentForm] = useState(false)
+  const [isCreatingPunishment, setIsCreatingPunishment] = useState(false)
+  const [editingPunishmentId, setEditingPunishmentId] = useState<string | null>(null)
+  const [deletingPunishmentId, setDeletingPunishmentId] = useState<string | null>(null)
   
   // Form state for upcoming assignments
   const [newAssignmentHost, setNewAssignmentHost] = useState('')
@@ -128,6 +137,16 @@ export default function SettingsPage() {
   const [editingMemberType, setEditingMemberType] = useState<string | null>(null)
   const [selectedMemberType, setSelectedMemberType] = useState<'participant' | 'spectator'>('participant')
   const [isUpdatingMemberType, setIsUpdatingMemberType] = useState(false)
+  
+  // Punishment form state
+  const [punishmentStartDate, setPunishmentStartDate] = useState(() => getLocalDateString())
+  const [punishmentEndDate, setPunishmentEndDate] = useState(() => addDaysToDateString(getLocalDateString(), 6))
+  const [punishmentUserIds, setPunishmentUserIds] = useState<string[]>([])
+  const [punishmentCardioMetric, setPunishmentCardioMetric] = useState<'miles' | 'minutes' | ''>('')
+  const [punishmentCardioTarget, setPunishmentCardioTarget] = useState('')
+  const [punishmentExercises, setPunishmentExercises] = useState<{ name: string; target_reps: number; sort_order: number }[]>([])
+  const [newExerciseName, setNewExerciseName] = useState('')
+  const [newExerciseReps, setNewExerciseReps] = useState('')
   
   const currentUserMembership = memberships.find(m => m.user_id === user?.id)
   const isAdmin = currentUserMembership?.role === 'admin'
@@ -183,6 +202,13 @@ export default function SettingsPage() {
           }
           setAssignmentChallenges(challenges)
         })
+      })
+      
+      // Fetch all punishments
+      getAllPunishments(group.id).then((punishments) => {
+        setAllPunishments(punishments)
+      }).catch((error) => {
+        console.error('[Settings] Error fetching punishments:', error)
       })
     }
   }, [group])
@@ -278,6 +304,190 @@ export default function SettingsPage() {
       alert('Error: ' + (error.message || 'Failed to update member type'))
     } finally {
       setIsUpdatingMemberType(false)
+    }
+  }
+  
+  const handleCreatePunishment = async () => {
+    if (!group || !user || !isAdmin) return
+    
+    if (punishmentUserIds.length === 0) {
+      alert('Please select at least one user')
+      return
+    }
+    
+    if (!punishmentCardioMetric && !punishmentCardioTarget && punishmentExercises.length === 0) {
+      alert('Please add at least one cardio target or strength exercise')
+      return
+    }
+    
+    if (punishmentCardioMetric && !punishmentCardioTarget) {
+      alert('Please enter a cardio target')
+      return
+    }
+    
+    setIsCreatingPunishment(true)
+    try {
+      await createPunishment(
+        group.id,
+        user.id,
+        punishmentStartDate,
+        punishmentEndDate,
+        punishmentUserIds,
+        punishmentCardioMetric || undefined,
+        punishmentCardioTarget ? parseFloat(punishmentCardioTarget) : undefined,
+        punishmentExercises.length > 0 ? punishmentExercises : undefined
+      )
+      
+      // Refresh punishments
+      const updated = await getAllPunishments(group.id)
+      setAllPunishments(updated)
+      
+      // Reset form
+      setShowPunishmentForm(false)
+      setPunishmentStartDate(getLocalDateString())
+      setPunishmentEndDate(addDaysToDateString(getLocalDateString(), 6))
+      setPunishmentUserIds([])
+      setPunishmentCardioMetric('')
+      setPunishmentCardioTarget('')
+      setPunishmentExercises([])
+      setNewExerciseName('')
+      setNewExerciseReps('')
+      
+      alert('Punishment created!')
+    } catch (error: any) {
+      alert('Error: ' + (error.message || 'Failed to create punishment'))
+    } finally {
+      setIsCreatingPunishment(false)
+    }
+  }
+  
+  const handleAddExercise = () => {
+    if (!newExerciseName || !newExerciseReps) {
+      alert('Please enter exercise name and target reps')
+      return
+    }
+    
+    const reps = parseInt(newExerciseReps)
+    if (isNaN(reps) || reps <= 0) {
+      alert('Please enter a valid number of reps')
+      return
+    }
+    
+    setPunishmentExercises([
+      ...punishmentExercises,
+      {
+        name: newExerciseName,
+        target_reps: reps,
+        sort_order: punishmentExercises.length,
+      }
+    ])
+    setNewExerciseName('')
+    setNewExerciseReps('')
+  }
+  
+  const handleRemoveExercise = (index: number) => {
+    setPunishmentExercises(punishmentExercises.filter((_, i) => i !== index))
+  }
+
+  const resetPunishmentForm = () => {
+    setShowPunishmentForm(false)
+    setEditingPunishmentId(null)
+    setPunishmentStartDate(getLocalDateString())
+    setPunishmentEndDate(addDaysToDateString(getLocalDateString(), 6))
+    setPunishmentUserIds([])
+    setPunishmentCardioMetric('')
+    setPunishmentCardioTarget('')
+    setPunishmentExercises([])
+    setNewExerciseName('')
+    setNewExerciseReps('')
+  }
+
+  const startEditPunishment = (punishmentData: ActivePunishment) => {
+    const p = punishmentData.punishment
+    setEditingPunishmentId(p.id)
+    setPunishmentStartDate(formatDateForInput(p.start_date))
+    setPunishmentEndDate(formatDateForInput(p.end_date))
+    setPunishmentUserIds(punishmentData.assigned_user_ids)
+    setPunishmentCardioMetric((p.cardio_metric as 'miles' | 'minutes') || '')
+    setPunishmentCardioTarget(p.cardio_target != null ? String(p.cardio_target) : '')
+    setPunishmentExercises(
+      punishmentData.exercises.map((ex: any) => ({
+        name: ex.name,
+        target_reps: ex.target_reps,
+        sort_order: ex.sort_order ?? punishmentData.exercises.indexOf(ex),
+      }))
+    )
+    setNewExerciseName('')
+    setNewExerciseReps('')
+    setShowPunishmentForm(true)
+  }
+
+  const handleSavePunishment = async () => {
+    if (!group || !user || !isAdmin) return
+    if (punishmentUserIds.length === 0) {
+      alert('Please select at least one user')
+      return
+    }
+    if (!punishmentCardioMetric && !punishmentCardioTarget && punishmentExercises.length === 0) {
+      alert('Please add at least one cardio target or strength exercise')
+      return
+    }
+    if (punishmentCardioMetric && !punishmentCardioTarget) {
+      alert('Please enter a cardio target')
+      return
+    }
+    setIsCreatingPunishment(true)
+    try {
+      if (editingPunishmentId) {
+        await updatePunishment(
+          editingPunishmentId,
+          punishmentStartDate,
+          punishmentEndDate,
+          punishmentUserIds,
+          punishmentCardioMetric || undefined,
+          punishmentCardioTarget ? parseFloat(punishmentCardioTarget) : undefined,
+          punishmentExercises.length > 0 ? punishmentExercises : undefined
+        )
+        const updated = await getAllPunishments(group.id)
+        setAllPunishments(updated)
+        resetPunishmentForm()
+        alert('Punishment updated!')
+      } else {
+        await createPunishment(
+          group.id,
+          user.id,
+          punishmentStartDate,
+          punishmentEndDate,
+          punishmentUserIds,
+          punishmentCardioMetric || undefined,
+          punishmentCardioTarget ? parseFloat(punishmentCardioTarget) : undefined,
+          punishmentExercises.length > 0 ? punishmentExercises : undefined
+        )
+        const updated = await getAllPunishments(group.id)
+        setAllPunishments(updated)
+        resetPunishmentForm()
+        alert('Punishment created!')
+      }
+    } catch (error: any) {
+      alert('Error: ' + (error.message || 'Failed to save punishment'))
+    } finally {
+      setIsCreatingPunishment(false)
+    }
+  }
+
+  const handleDeletePunishment = async (punishmentId: string) => {
+    if (!group || !isAdmin) return
+    if (!confirm('Delete this punishment? This cannot be undone.')) return
+    setDeletingPunishmentId(punishmentId)
+    try {
+      await deletePunishment(punishmentId)
+      const updated = await getAllPunishments(group.id)
+      setAllPunishments(updated)
+      if (editingPunishmentId === punishmentId) resetPunishmentForm()
+    } catch (error: any) {
+      alert('Error: ' + (error.message || 'Failed to delete punishment'))
+    } finally {
+      setDeletingPunishmentId(null)
     }
   }
   
@@ -1055,6 +1265,246 @@ export default function SettingsPage() {
               </div>
             )}
           </div>
+          
+          {/* Assign Punishments (Admin Only) */}
+          {isAdmin && (
+            <div className="glass-card rounded-2xl soft-shadow-lg p-6 border border-red-100/30">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-800 tracking-tight">Assign Punishments</h2>
+                {!showPunishmentForm && (
+                  <button
+                    onClick={() => setShowPunishmentForm(true)}
+                    className="px-4 py-2 bg-[#8B4513] text-white rounded-xl hover:opacity-90 soft-shadow font-medium transition-all text-sm"
+                  >
+                    Assign Punishment
+                  </button>
+                )}
+              </div>
+              
+              {/* List of existing punishments */}
+              {allPunishments.length > 0 && (
+                <div className="space-y-3 mb-6">
+                  {allPunishments.map((punishmentData) => {
+                    const assignedUsers = membersWithProfiles.filter(m => 
+                      punishmentData.assigned_user_ids.includes(m.user_id)
+                    )
+                    const isDeleting = deletingPunishmentId === punishmentData.punishment.id
+                    return (
+                      <div key={punishmentData.punishment.id} className="p-3 bg-red-50/50 rounded-xl border border-red-200/50">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div>
+                            <p className="text-sm font-medium text-gray-800">
+                              {formatDateForDisplay(punishmentData.punishment.start_date)} - {formatDateForDisplay(punishmentData.punishment.end_date)}
+                            </p>
+                            <p className="text-xs text-gray-600 mt-1">
+                              Assigned to: {assignedUsers.map(u => u.profile?.display_name).join(', ') || 'None'}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <button
+                              onClick={() => startEditPunishment(punishmentData)}
+                              disabled={!!editingPunishmentId}
+                              className="text-xs font-medium text-[#8B4513] hover:underline disabled:opacity-50"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeletePunishment(punishmentData.punishment.id)}
+                              disabled={isDeleting}
+                              className="text-xs font-medium text-red-600 hover:underline disabled:opacity-50"
+                            >
+                              {isDeleting ? 'Deleting...' : 'Delete'}
+                            </button>
+                          </div>
+                        </div>
+                        {punishmentData.punishment.cardio_target && punishmentData.punishment.cardio_metric && (
+                          <p className="text-xs text-gray-700 mb-1">
+                            Cardio: {punishmentData.punishment.cardio_target} {punishmentData.punishment.cardio_metric}
+                          </p>
+                        )}
+                        {punishmentData.exercises.length > 0 && (
+                          <div className="mt-1">
+                            <p className="text-xs font-medium text-gray-700 mb-1">Strength Exercises:</p>
+                            <ul className="text-xs text-gray-600 space-y-0.5">
+                              {punishmentData.exercises.map((ex: any) => (
+                                <li key={ex.id}>• {ex.name}: {ex.target_reps} reps</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+              
+              {/* Punishment Form */}
+              {showPunishmentForm && (
+                <div className="pt-4 border-t border-gray-200/50 space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-800 tracking-tight">
+                    {editingPunishmentId ? 'Edit Punishment' : 'Create New Punishment'}
+                  </h3>
+                  
+                  {/* Dates */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Start Date
+                      </label>
+                      <input
+                        type="date"
+                        value={punishmentStartDate}
+                        onChange={(e) => setPunishmentStartDate(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
+                        style={{ fontSize: '16px' }}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        End Date
+                      </label>
+                      <input
+                        type="date"
+                        value={punishmentEndDate}
+                        onChange={(e) => setPunishmentEndDate(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
+                        style={{ fontSize: '16px' }}
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Assigned Users */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Assign To (select multiple)
+                    </label>
+                    <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-200 rounded-xl p-2">
+                      {membersWithProfiles
+                        .filter(m => m.member_type !== 'spectator')
+                        .map((member) => (
+                        <label key={member.user_id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded-lg cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={punishmentUserIds.includes(member.user_id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setPunishmentUserIds([...punishmentUserIds, member.user_id])
+                              } else {
+                                setPunishmentUserIds(punishmentUserIds.filter(id => id !== member.user_id))
+                              }
+                            }}
+                            className="w-4 h-4 text-[#8B4513] rounded"
+                          />
+                          <span className="text-sm text-gray-800">
+                            {member.profile?.display_name || 'Unknown'} {member.user_id === user?.id && '(You)'}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {/* Cardio */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Cardio (optional)
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <select
+                        value={punishmentCardioMetric}
+                        onChange={(e) => setPunishmentCardioMetric(e.target.value as 'miles' | 'minutes' | '')}
+                        className="px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
+                        style={{ fontSize: '16px' }}
+                      >
+                        <option value="">Select metric</option>
+                        <option value="miles">Miles</option>
+                        <option value="minutes">Minutes</option>
+                      </select>
+                      {punishmentCardioMetric && (
+                        <input
+                          type="number"
+                          value={punishmentCardioTarget}
+                          onChange={(e) => setPunishmentCardioTarget(e.target.value)}
+                          placeholder="Target"
+                          min="0"
+                          step="0.1"
+                          className="px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
+                          style={{ fontSize: '16px' }}
+                        />
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Strength Exercises */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Strength Exercises (optional)
+                    </label>
+                    {punishmentExercises.length > 0 && (
+                      <div className="space-y-2 mb-3">
+                        {punishmentExercises.map((ex, index) => (
+                          <div key={index} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+                            <span className="flex-1 text-sm text-gray-800">
+                              {ex.name}: {ex.target_reps} reps
+                            </span>
+                            <button
+                              onClick={() => handleRemoveExercise(index)}
+                              className="text-red-600 hover:text-red-800 text-sm font-medium"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newExerciseName}
+                        onChange={(e) => setNewExerciseName(e.target.value)}
+                        placeholder="Exercise name"
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
+                        style={{ fontSize: '16px' }}
+                      />
+                      <input
+                        type="number"
+                        value={newExerciseReps}
+                        onChange={(e) => setNewExerciseReps(e.target.value)}
+                        placeholder="Target reps"
+                        min="1"
+                        className="w-32 px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#8B4513] focus:border-[#8B4513] bg-white/50"
+                        style={{ fontSize: '16px' }}
+                      />
+                      <button
+                        onClick={handleAddExercise}
+                        className="px-4 py-2 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-medium transition-colors"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* Buttons */}
+                  <div className="flex gap-3">
+                    <button
+                      onClick={resetPunishmentForm}
+                      className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSavePunishment}
+                      disabled={isCreatingPunishment}
+                      className="flex-1 px-4 py-3 bg-[#8B4513] text-white rounded-xl hover:opacity-90 disabled:opacity-50 soft-shadow font-medium transition-all"
+                    >
+                      {isCreatingPunishment ? (editingPunishmentId ? 'Updating...' : 'Creating...') : (editingPunishmentId ? 'Update Punishment' : 'Create Punishment')}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

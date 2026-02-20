@@ -10,7 +10,15 @@ import type {
   WorkoutLog,
   UserProgress,
   ActivityFeedItem,
-  ActiveWeek
+  ActiveWeek,
+  Punishment,
+  PunishmentExercise,
+  PunishmentAssignment,
+  PunishmentLog,
+  ActivePunishment,
+  PunishmentProgress,
+  CardioMetric,
+  CardioActivity
 } from '@/types'
 
 // Helper function to get today's date in local timezone (YYYY-MM-DD format)
@@ -888,33 +896,67 @@ export async function getActivityFeed(groupId: string, limit: number = 5): Promi
     .limit(1)
     .maybeSingle()
   
-  if (!assignmentData) return []
+  const regularLogs: any[] = []
+  if (assignmentData) {
+    // Get challenge for this assignment
+    const assignmentId = (assignmentData as any).id
+    const { data: challengeData } = await supabase
+      .from('week_challenges')
+      .select('id')
+      .eq('week_assignment_id', assignmentId)
+      .maybeSingle()
+    
+    if (challengeData) {
+      // Query logs directly for this challenge
+      const challengeId = (challengeData as any).id
+      const { data: logsData, error: logsError } = await supabase
+        .from('workout_logs')
+        .select('id, user_id, log_type, cardio_activity, cardio_amount, exercise_id, strength_reps, created_at')
+        .eq('week_challenge_id', challengeId)
+        .order('created_at', { ascending: false })
+        .limit(limit)
+      
+      if (!logsError && logsData) {
+        regularLogs.push(...logsData.map((log: any) => ({ ...log, is_punishment: false })))
+      }
+    }
+  }
   
-  // Get challenge for this assignment
-  const assignmentId = (assignmentData as any).id
-  const { data: challengeData } = await supabase
-    .from('week_challenges')
+  // Get active punishment logs
+  const { data: activePunishmentsData } = await supabase
+    .from('punishments')
     .select('id')
-    .eq('week_assignment_id', assignmentId)
-    .maybeSingle()
+    .eq('group_id', groupId)
+    .lte('start_date', today)
+    .gte('end_date', today)
   
-  if (!challengeData) return []
+  const punishmentLogs: any[] = []
+  if (activePunishmentsData && activePunishmentsData.length > 0) {
+    const punishmentIds = activePunishmentsData.map(p => (p as any).id)
+    
+    const { data: logsData } = await supabase
+      .from('punishment_logs')
+      .select('id, user_id, log_type, cardio_activity, cardio_amount, exercise_id, strength_reps, created_at')
+      .in('punishment_id', punishmentIds)
+      .order('created_at', { ascending: false })
+      .limit(limit)
+    
+    if (logsData) {
+      punishmentLogs.push(...logsData.map((log: any) => ({ ...log, is_punishment: true })))
+    }
+  }
   
-  // Query logs directly for this challenge
-  const challengeId = (challengeData as any).id
-  const { data: logsData, error: logsError } = await supabase
-    .from('workout_logs')
-    .select('id, user_id, log_type, cardio_activity, cardio_amount, exercise_id, strength_reps, created_at')
-    .eq('week_challenge_id', challengeId)
-    .order('created_at', { ascending: false })
-    .limit(limit)
+  // Combine and sort by created_at
+  const allLogs = [...regularLogs, ...punishmentLogs]
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, limit)
   
-  if (logsError) throw logsError
-  if (!logsData || logsData.length === 0) return []
+  if (allLogs.length === 0) return []
   
   // Get unique user IDs and exercise IDs
-  const userIds = Array.from(new Set((logsData as any[]).map(log => log.user_id)))
-  const exerciseIds = Array.from(new Set((logsData as any[]).map(log => log.exercise_id).filter(Boolean)))
+  const userIds = Array.from(new Set(allLogs.map(log => log.user_id)))
+  const regularExerciseIds = Array.from(new Set(allLogs.filter(log => !log.is_punishment && log.exercise_id).map(log => log.exercise_id)))
+  const punishmentExerciseIds = Array.from(new Set(allLogs.filter(log => log.is_punishment && log.exercise_id).map(log => log.exercise_id)))
   
   // Fetch profiles for all users
   const { data: profiles } = await supabase
@@ -922,30 +964,456 @@ export async function getActivityFeed(groupId: string, limit: number = 5): Promi
     .select('id, display_name')
     .in('id', userIds)
   
-  // Fetch exercise names if needed
-  let exercises: any[] = []
-  if (exerciseIds.length > 0) {
+  // Fetch exercise names for regular exercises
+  let regularExercises: any[] = []
+  if (regularExerciseIds.length > 0) {
     const { data: exercisesData } = await supabase
       .from('strength_exercises')
       .select('id, name')
-      .in('id', exerciseIds)
-    exercises = exercisesData || []
+      .in('id', regularExerciseIds)
+    regularExercises = exercisesData || []
+  }
+  
+  // Fetch exercise names for punishment exercises
+  let punishmentExercises: any[] = []
+  if (punishmentExerciseIds.length > 0) {
+    const { data: exercisesData } = await supabase
+      .from('punishment_exercises')
+      .select('id, name')
+      .in('id', punishmentExerciseIds)
+    punishmentExercises = exercisesData || []
   }
   
   // Create maps for quick lookup
   const profileMap = new Map((profiles || []).map((p: any) => [p.id, p.display_name]))
-  const exerciseMap = new Map(exercises.map((e: any) => [e.id, e.name]))
+  const regularExerciseMap = new Map(regularExercises.map((e: any) => [e.id, e.name]))
+  const punishmentExerciseMap = new Map(punishmentExercises.map((e: any) => [e.id, e.name]))
   
   // Build result
-  return (logsData as any[]).map((log: any) => ({
+  return allLogs.map((log: any) => ({
     id: log.id,
     user_id: log.user_id,
     display_name: profileMap.get(log.user_id) || 'Unknown',
     log_type: log.log_type,
     cardio_activity: log.cardio_activity || undefined,
     cardio_amount: log.cardio_amount || undefined,
-    exercise_name: log.exercise_id ? exerciseMap.get(log.exercise_id) || undefined : undefined,
+    exercise_name: log.exercise_id 
+      ? (log.is_punishment ? punishmentExerciseMap.get(log.exercise_id) : regularExerciseMap.get(log.exercise_id)) || undefined
+      : undefined,
     strength_reps: log.strength_reps || undefined,
     created_at: log.created_at,
+    is_punishment: log.is_punishment || false,
   }))
+}
+
+// Punishments
+export async function createPunishment(
+  groupId: string,
+  assignedBy: string,
+  startDate: string,
+  endDate: string,
+  userIds: string[],
+  cardioMetric?: CardioMetric,
+  cardioTarget?: number,
+  exercises?: { name: string; target_reps: number; sort_order: number }[]
+): Promise<Punishment> {
+  const supabase = createClient() as SupabaseClient
+  
+  // Create punishment
+  const { data: punishmentData, error: punishmentError } = await supabase
+    .from('punishments')
+    // @ts-expect-error - Supabase type inference issue with Database type
+    .insert({
+      group_id: groupId,
+      assigned_by: assignedBy,
+      start_date: startDate,
+      end_date: endDate,
+      cardio_metric: cardioMetric || null,
+      cardio_target: cardioTarget || null,
+    })
+    .select()
+    .single()
+  
+  if (punishmentError) throw punishmentError
+  const punishmentId = (punishmentData as any).id
+  
+  // Create exercises if provided
+  if (exercises && exercises.length > 0) {
+    const { error: exercisesError } = await supabase
+      .from('punishment_exercises')
+      // @ts-expect-error - Supabase type inference issue with Database type
+      .insert(exercises.map(ex => ({
+        punishment_id: punishmentId,
+        name: ex.name,
+        target_reps: ex.target_reps,
+        sort_order: ex.sort_order,
+      })))
+    
+    if (exercisesError) throw exercisesError
+  }
+  
+  // Create assignments
+  const { error: assignmentsError } = await supabase
+    .from('punishment_assignments')
+    // @ts-expect-error - Supabase type inference issue with Database type
+    .insert(userIds.map(userId => ({
+      punishment_id: punishmentId,
+      user_id: userId,
+    })))
+  
+  if (assignmentsError) throw assignmentsError
+  
+  return punishmentData as any
+}
+
+export async function deletePunishment(punishmentId: string): Promise<void> {
+  const supabase = createClient() as SupabaseClient
+  // Cascade will delete punishment_assignments, punishment_exercises, punishment_logs
+  const { error } = await supabase
+    .from('punishments')
+    .delete()
+    .eq('id', punishmentId)
+  
+  if (error) throw error
+}
+
+export async function updatePunishment(
+  punishmentId: string,
+  startDate: string,
+  endDate: string,
+  userIds: string[],
+  cardioMetric?: CardioMetric,
+  cardioTarget?: number,
+  exercises?: { name: string; target_reps: number; sort_order: number }[]
+): Promise<void> {
+  const supabase = createClient() as SupabaseClient
+  
+  // Update punishment row
+  const updatePayload: any = {
+    start_date: startDate,
+    end_date: endDate,
+    cardio_metric: cardioMetric || null,
+    cardio_target: cardioTarget || null,
+  }
+  
+  const { error: updateError } = await supabase
+    .from('punishments')
+    .update(updatePayload)
+    .eq('id', punishmentId)
+  
+  if (updateError) throw updateError
+  
+  // Replace assignments: delete existing, insert new
+  await supabase.from('punishment_assignments').delete().eq('punishment_id', punishmentId)
+  
+  if (userIds.length > 0) {
+    const { error: assignmentsError } = await supabase
+      .from('punishment_assignments')
+      .insert(userIds.map(userId => ({
+        punishment_id: punishmentId,
+        user_id: userId,
+      })))
+    
+    if (assignmentsError) throw assignmentsError
+  }
+  
+  // Replace exercises: delete existing, insert new
+  await supabase.from('punishment_exercises').delete().eq('punishment_id', punishmentId)
+  
+  if (exercises && exercises.length > 0) {
+    const { error: exercisesError } = await supabase
+      .from('punishment_exercises')
+      .insert(exercises.map(ex => ({
+        punishment_id: punishmentId,
+        name: ex.name,
+        target_reps: ex.target_reps,
+        sort_order: ex.sort_order,
+      })))
+    
+    if (exercisesError) throw exercisesError
+  }
+}
+
+export async function getActivePunishmentForUser(userId: string, groupId: string): Promise<ActivePunishment | null> {
+  const supabase = createClient() as SupabaseClient
+  const today = getLocalDateString()
+  
+  // Get active punishment assigned to user
+  const { data: assignmentData, error: assignmentError } = await supabase
+    .from('punishment_assignments')
+    .select('punishment_id')
+    .eq('user_id', userId)
+  
+  if (assignmentError) throw assignmentError
+  if (!assignmentData || assignmentData.length === 0) return null
+  
+  const punishmentIds = assignmentData.map(a => (a as any).punishment_id)
+  
+  // Get active punishments (where today is between start and end date)
+  const { data: punishmentData, error: punishmentError } = await supabase
+    .from('punishments')
+    .select('*')
+    .eq('group_id', groupId)
+    .in('id', punishmentIds)
+    .lte('start_date', today)
+    .gte('end_date', today)
+    .order('start_date', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  
+  if (punishmentError) throw punishmentError
+  if (!punishmentData) return null
+  
+  const punishmentId = (punishmentData as any).id
+  
+  // Get exercises
+  const { data: exercisesData, error: exercisesError } = await supabase
+    .from('punishment_exercises')
+    .select('*')
+    .eq('punishment_id', punishmentId)
+    .order('sort_order')
+  
+  if (exercisesError) throw exercisesError
+  
+  // Get assigned user IDs
+  const { data: assignmentsData, error: assignmentsError } = await supabase
+    .from('punishment_assignments')
+    .select('user_id')
+    .eq('punishment_id', punishmentId)
+  
+  if (assignmentsError) throw assignmentsError
+  
+  return {
+    punishment: punishmentData as any,
+    exercises: (exercisesData || []) as any[],
+    assigned_user_ids: (assignmentsData || []).map(a => (a as any).user_id),
+  }
+}
+
+export async function getAllPunishments(groupId: string): Promise<ActivePunishment[]> {
+  const supabase = createClient() as SupabaseClient
+  
+  const { data: punishmentsData, error: punishmentsError } = await supabase
+    .from('punishments')
+    .select('*')
+    .eq('group_id', groupId)
+    .order('created_at', { ascending: false })
+  
+  if (punishmentsError) throw punishmentsError
+  if (!punishmentsData || punishmentsData.length === 0) return []
+  
+  const results: ActivePunishment[] = []
+  
+  for (const punishment of punishmentsData) {
+    const punishmentId = (punishment as any).id
+    
+    // Get exercises
+    const { data: exercisesData } = await supabase
+      .from('punishment_exercises')
+      .select('*')
+      .eq('punishment_id', punishmentId)
+      .order('sort_order')
+    
+    // Get assigned user IDs
+    const { data: assignmentsData } = await supabase
+      .from('punishment_assignments')
+      .select('user_id')
+      .eq('punishment_id', punishmentId)
+    
+    results.push({
+      punishment: punishment as any,
+      exercises: (exercisesData || []) as any[],
+      assigned_user_ids: (assignmentsData || []).map(a => (a as any).user_id),
+    })
+  }
+  
+  return results
+}
+
+export async function getPunishmentLogs(punishmentId: string): Promise<PunishmentLog[]> {
+  const supabase = createClient() as SupabaseClient
+  
+  const { data, error } = await supabase
+    .from('punishment_logs')
+    .select('*')
+    .eq('punishment_id', punishmentId)
+    .order('created_at', { ascending: false })
+  
+  if (error) throw error
+  return (data || []) as any[]
+}
+
+export async function createPunishmentLog(
+  groupId: string,
+  punishmentId: string,
+  userId: string,
+  loggedAt: string,
+  logType: 'cardio' | 'strength',
+  cardioActivity?: CardioActivity,
+  cardioAmount?: number,
+  exerciseId?: string,
+  strengthReps?: number,
+  note?: string
+): Promise<PunishmentLog> {
+  const supabase = createClient() as SupabaseClient
+  
+  const logData: any = {
+    group_id: groupId,
+    punishment_id: punishmentId,
+    user_id: userId,
+    logged_at: loggedAt,
+    log_type: logType,
+  }
+  
+  if (logType === 'cardio') {
+    logData.cardio_activity = cardioActivity
+    logData.cardio_amount = cardioAmount
+  } else {
+    logData.exercise_id = exerciseId
+    logData.strength_reps = strengthReps
+  }
+  
+  if (note) {
+    logData.note = note
+  }
+  
+  const { data, error } = await supabase
+    .from('punishment_logs')
+    .insert(logData)
+    .select()
+    .single()
+  
+  if (error) throw error
+  return data as any
+}
+
+export async function getUserPunishmentProgress(
+  userId: string,
+  punishmentId: string
+): Promise<PunishmentProgress | null> {
+  const supabase = createClient() as SupabaseClient
+  
+  // Get punishment details
+  const { data: punishmentData, error: punishmentError } = await supabase
+    .from('punishments')
+    .select('*')
+    .eq('id', punishmentId)
+    .single()
+  
+  if (punishmentError || !punishmentData) return null
+  
+  const punishment = punishmentData as any
+  
+  // Get exercises
+  const { data: exercisesData } = await supabase
+    .from('punishment_exercises')
+    .select('*')
+    .eq('punishment_id', punishmentId)
+    .order('sort_order')
+  
+  const exercises = (exercisesData || []) as any[]
+  
+  // Get user logs
+  const { data: logsData } = await supabase
+    .from('punishment_logs')
+    .select('log_type, cardio_amount, exercise_id, strength_reps, created_at')
+    .eq('punishment_id', punishmentId)
+    .eq('user_id', userId)
+  
+  const logs = (logsData || []) as any[]
+  
+  // Calculate cardio progress
+  let cardioTotal = 0
+  let cardioProgress = 0
+  if (punishment.cardio_target && punishment.cardio_metric) {
+    cardioTotal = logs
+      .filter(log => log.log_type === 'cardio')
+      .reduce((sum, log) => sum + (log.cardio_amount || 0), 0)
+    cardioProgress = Math.min(cardioTotal / punishment.cardio_target, 1)
+  }
+  
+  // Calculate strength progress
+  const exerciseTotals: Record<string, number> = {}
+  exercises.forEach((ex: any) => {
+    const total = logs
+      .filter(log => log.log_type === 'strength' && log.exercise_id === ex.id)
+      .reduce((sum, log) => sum + (log.strength_reps || 0), 0)
+    exerciseTotals[ex.id] = total
+  })
+  
+  const strengthProgresses = exercises.map((ex: any) => {
+    const total = exerciseTotals[ex.id] || 0
+    return Math.min(total / ex.target_reps, 1)
+  })
+  
+  const strengthOverallProgress = strengthProgresses.length > 0
+    ? strengthProgresses.reduce((sum, p) => sum + p, 0) / strengthProgresses.length
+    : 0
+  
+  // Total progress
+  let totalProgress = 0
+  if (punishment.cardio_target && exercises.length > 0) {
+    totalProgress = (cardioProgress + strengthOverallProgress) / 2
+  } else if (punishment.cardio_target) {
+    totalProgress = cardioProgress
+  } else if (exercises.length > 0) {
+    totalProgress = strengthOverallProgress
+  }
+  
+  // Get profile
+  const { data: profileData } = await supabase
+    .from('profiles')
+    .select('display_name')
+    .eq('id', userId)
+    .single()
+  
+  const lastActivity = logs.length > 0
+    ? logs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0].created_at
+    : undefined
+  
+  return {
+    user_id: userId,
+    display_name: (profileData as any)?.display_name || 'Unknown',
+    cardio_total: cardioTotal,
+    cardio_progress: cardioProgress,
+    strength_overall_progress: strengthOverallProgress,
+    total_progress: totalProgress,
+    last_activity_at: lastActivity,
+    exercise_totals: exerciseTotals,
+  }
+}
+
+export async function getPunishmentLeaderboard(punishmentId: string): Promise<PunishmentProgress[]> {
+  const supabase = createClient() as SupabaseClient
+  
+  // Get assigned users
+  const { data: assignmentsData, error: assignmentsError } = await supabase
+    .from('punishment_assignments')
+    .select('user_id')
+    .eq('punishment_id', punishmentId)
+  
+  if (assignmentsError) throw assignmentsError
+  if (!assignmentsData || assignmentsData.length === 0) return []
+  
+  const userIds = assignmentsData.map(a => (a as any).user_id)
+  
+  // Get all progress for assigned users
+  const progressList: PunishmentProgress[] = []
+  for (const userId of userIds) {
+    const progress = await getUserPunishmentProgress(userId, punishmentId)
+    if (progress) {
+      progressList.push(progress)
+    }
+  }
+  
+  // Sort by total progress descending
+  return progressList.sort((a, b) => {
+    if (b.total_progress !== a.total_progress) {
+      return b.total_progress - a.total_progress
+    }
+    if (b.cardio_progress !== a.cardio_progress) {
+      return b.cardio_progress - a.cardio_progress
+    }
+    return b.strength_overall_progress - a.strength_overall_progress
+  })
 }
