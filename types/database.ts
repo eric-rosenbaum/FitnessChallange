@@ -200,6 +200,128 @@ export interface Database {
           note?: string | null
         }
       }
+      punishments: {
+        Row: {
+          id: string
+          group_id: string
+          assigned_by: string
+          cardio_metric: 'miles' | 'minutes' | null
+          cardio_target: number | null
+          start_date: string
+          end_date: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          group_id: string
+          assigned_by: string
+          cardio_metric?: 'miles' | 'minutes' | null
+          cardio_target?: number | null
+          start_date: string
+          end_date: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          group_id?: string
+          assigned_by?: string
+          cardio_metric?: 'miles' | 'minutes' | null
+          cardio_target?: number | null
+          start_date?: string
+          end_date?: string
+          created_at?: string
+        }
+      }
+      punishment_exercises: {
+        Row: {
+          id: string
+          punishment_id: string
+          name: string
+          target_reps: number
+          sort_order: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          punishment_id: string
+          name: string
+          target_reps: number
+          sort_order: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          punishment_id?: string
+          name?: string
+          target_reps?: number
+          sort_order?: number
+          created_at?: string
+        }
+      }
+      punishment_assignments: {
+        Row: {
+          id: string
+          punishment_id: string
+          user_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          punishment_id: string
+          user_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          punishment_id?: string
+          user_id?: string
+          created_at?: string
+        }
+      }
+      punishment_logs: {
+        Row: {
+          id: string
+          group_id: string
+          punishment_id: string
+          user_id: string
+          logged_at: string
+          created_at: string
+          log_type: 'cardio' | 'strength'
+          cardio_activity: 'run' | 'walk' | 'bike' | 'other' | null
+          cardio_amount: number | null
+          exercise_id: string | null
+          strength_reps: number | null
+          note: string | null
+        }
+        Insert: {
+          id?: string
+          group_id: string
+          punishment_id: string
+          user_id: string
+          logged_at: string
+          created_at?: string
+          log_type: 'cardio' | 'strength'
+          cardio_activity?: 'run' | 'walk' | 'bike' | 'other' | null
+          cardio_amount?: number | null
+          exercise_id?: string | null
+          strength_reps?: number | null
+          note?: string | null
+        }
+        Update: {
+          id?: string
+          group_id?: string
+          punishment_id?: string
+          user_id?: string
+          logged_at?: string
+          created_at?: string
+          log_type?: 'cardio' | 'strength'
+          cardio_activity?: 'run' | 'walk' | 'bike' | 'other' | null
+          cardio_amount?: number | null
+          exercise_id?: string | null
+          strength_reps?: number | null
+          note?: string | null
+        }
+      }
     }
     Views: {
       v_active_week: {

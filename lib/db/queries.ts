@@ -1018,11 +1018,11 @@ export async function createPunishment(
   exercises?: { name: string; target_reps: number; sort_order: number }[]
 ): Promise<Punishment> {
   const supabase = createClient() as SupabaseClient
-  
+  const db = supabase as any
+
   // Create punishment
-  const { data: punishmentData, error: punishmentError } = await supabase
+  const { data: punishmentData, error: punishmentError } = await db
     .from('punishments')
-    // @ts-expect-error - Supabase type inference issue with Database type
     .insert({
       group_id: groupId,
       assigned_by: assignedBy,
@@ -1033,47 +1033,42 @@ export async function createPunishment(
     })
     .select()
     .single()
-  
+
   if (punishmentError) throw punishmentError
   const punishmentId = (punishmentData as any).id
-  
+
   // Create exercises if provided
   if (exercises && exercises.length > 0) {
-    const { error: exercisesError } = await supabase
+    const { error: exercisesError } = await db
       .from('punishment_exercises')
-      // @ts-expect-error - Supabase type inference issue with Database type
       .insert(exercises.map(ex => ({
         punishment_id: punishmentId,
         name: ex.name,
         target_reps: ex.target_reps,
         sort_order: ex.sort_order,
       })))
-    
+
     if (exercisesError) throw exercisesError
   }
-  
+
   // Create assignments
-  const { error: assignmentsError } = await supabase
+  const { error: assignmentsError } = await db
     .from('punishment_assignments')
-    // @ts-expect-error - Supabase type inference issue with Database type
     .insert(userIds.map(userId => ({
       punishment_id: punishmentId,
       user_id: userId,
     })))
-  
+
   if (assignmentsError) throw assignmentsError
-  
+
   return punishmentData as any
 }
 
 export async function deletePunishment(punishmentId: string): Promise<void> {
   const supabase = createClient() as SupabaseClient
+  const db = supabase as any
   // Cascade will delete punishment_assignments, punishment_exercises, punishment_logs
-  const { error } = await supabase
-    .from('punishments')
-    .delete()
-    .eq('id', punishmentId)
-  
+  const { error } = await db.from('punishments').delete().eq('id', punishmentId)
   if (error) throw error
 }
 
@@ -1089,39 +1084,42 @@ export async function updatePunishment(
   const supabase = createClient() as SupabaseClient
   
   // Update punishment row
-  const updatePayload: any = {
+  const updatePayload = {
     start_date: startDate,
     end_date: endDate,
-    cardio_metric: cardioMetric || null,
-    cardio_target: cardioTarget || null,
+    cardio_metric: cardioMetric ?? null,
+    cardio_target: cardioTarget ?? null,
   }
-  
-  const { error: updateError } = await supabase
+
+  // Use type assertion for punishment tables (Supabase client may infer 'never' in some build contexts)
+  const db = supabase as any
+
+  const { error: updateError } = await db
     .from('punishments')
     .update(updatePayload)
     .eq('id', punishmentId)
-  
+
   if (updateError) throw updateError
-  
+
   // Replace assignments: delete existing, insert new
-  await supabase.from('punishment_assignments').delete().eq('punishment_id', punishmentId)
-  
+  await db.from('punishment_assignments').delete().eq('punishment_id', punishmentId)
+
   if (userIds.length > 0) {
-    const { error: assignmentsError } = await supabase
+    const { error: assignmentsError } = await db
       .from('punishment_assignments')
       .insert(userIds.map(userId => ({
         punishment_id: punishmentId,
         user_id: userId,
       })))
-    
+
     if (assignmentsError) throw assignmentsError
   }
-  
+
   // Replace exercises: delete existing, insert new
-  await supabase.from('punishment_exercises').delete().eq('punishment_id', punishmentId)
-  
+  await db.from('punishment_exercises').delete().eq('punishment_id', punishmentId)
+
   if (exercises && exercises.length > 0) {
-    const { error: exercisesError } = await supabase
+    const { error: exercisesError } = await db
       .from('punishment_exercises')
       .insert(exercises.map(ex => ({
         punishment_id: punishmentId,
@@ -1129,7 +1127,7 @@ export async function updatePunishment(
         target_reps: ex.target_reps,
         sort_order: ex.sort_order,
       })))
-    
+
     if (exercisesError) throw exercisesError
   }
 }
@@ -1276,13 +1274,9 @@ export async function createPunishmentLog(
   if (note) {
     logData.note = note
   }
-  
-  const { data, error } = await supabase
-    .from('punishment_logs')
-    .insert(logData)
-    .select()
-    .single()
-  
+
+  const db = supabase as any
+  const { data, error } = await db.from('punishment_logs').insert(logData).select().single()
   if (error) throw error
   return data as any
 }
