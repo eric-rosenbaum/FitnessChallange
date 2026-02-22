@@ -1,6 +1,12 @@
-# Fitness Challenge Tracker - Frontend MVP
+# Fitness Challenge
 
-A mobile-first web application for friend groups to run weekly fitness challenges with cardio and strength goals.
+A mobile-first web app (and future iOS app) for friend groups to run weekly fitness challenges with cardio and strength goals.
+
+## Repo structure
+
+- **`web/`** — Next.js web app. Run from here: `cd web && npm run dev`
+- **`ios/`** — Swift/iOS app (to be added). Same Supabase backend.
+- **`supabase/`** — Migrations and backend config shared by web and iOS.
 
 ## Features
 
@@ -26,51 +32,37 @@ A mobile-first web application for friend groups to run weekly fitness challenge
 
 ### Installation
 
-1. Install dependencies:
+1. Go into the web app and install dependencies:
 ```bash
-npm install
+cd web && npm install
 ```
 
-### Running Locally
+### Running the web app
 
-Start the development server:
-
+From the repo root:
 ```bash
-npm run dev
+cd web && npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser to see the app.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-The app will be available at `http://localhost:3000` and will automatically reload when you make changes.
-
-### Build for Production
+### Build for production
 
 ```bash
-npm run build
-npm start
+cd web && npm run build && npm start
 ```
 
-## Project Structure
+## Project structure
 
 ```
-├── app/                    # Next.js app directory
-│   ├── page.tsx           # Home dashboard
-│   ├── log/               # Log workout page
-│   ├── create-challenge/  # Create challenge page (host only)
-│   └── settings/          # Group settings (admin only)
-├── components/            # React components
-│   ├── StickyTopBar.tsx
-│   ├── ChallengeSummaryCard.tsx
-│   ├── ProgressCard.tsx
-│   ├── Leaderboard.tsx
-│   ├── ActivityFeed.tsx
-│   └── EmptyState.tsx
-├── context/               # React context for state management
-│   └── AppContext.tsx
-├── lib/                   # Utility functions and dummy data
-│   └── dummyData.ts
-└── types/                 # TypeScript type definitions
-    └── index.ts
+├── web/                   # Next.js app (see web/README or run: cd web && npm run dev)
+│   ├── app/
+│   ├── components/
+│   ├── context/
+│   ├── lib/
+│   └── types/
+├── ios/                   # Swift iOS app (to be added)
+└── supabase/              # Migrations, shared backend
 ```
 
 ## Current User
