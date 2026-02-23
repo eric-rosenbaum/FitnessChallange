@@ -229,9 +229,11 @@ struct SettingsView: View {
                         .font(.subheadline)
                         .foregroundStyle(Theme.brown)
                         Button("Edit exercises") {
-                            challengeCardioTarget = String(Int(appState.challenge.cardioTarget))
-                            challengeCardioMetric = appState.challenge.cardioMetric
-                            editingChallenge = true
+                            if let ch = appState.challenge {
+                                challengeCardioTarget = String(Int(ch.cardioTarget))
+                                challengeCardioMetric = ch.cardioMetric
+                                editingChallenge = true
+                            }
                         }
                         .font(.subheadline)
                         .foregroundStyle(Theme.brown)

@@ -36,3 +36,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# iOS Supabase secrets (use Supabase-Config.example.plist as template)
+ios/FitnessChallenge/FitnessChallenge/Supabase-Config.plist

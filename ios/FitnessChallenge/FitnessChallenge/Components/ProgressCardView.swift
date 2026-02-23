@@ -66,6 +66,14 @@ struct ProgressCardView: View {
                 }
                 .frame(maxWidth: .infinity)
             }
+            HStack {
+                Spacer()
+                NavigationLink(value: "EditLogs") {
+                    Label("Edit logs", systemImage: "pencil")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(Theme.brown)
+                }
+            }
         }
         .modifier(GlassCardStyle())
     }

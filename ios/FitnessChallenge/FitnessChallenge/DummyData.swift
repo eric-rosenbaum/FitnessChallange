@@ -107,10 +107,40 @@ enum DummyData {
             strengthProgress = perEx.reduce(0, +) / Double(perEx.count)
         }
         let totalProgress = (cardioProgress + strengthProgress) / 2
-        let profile = profile(for: userId)!
+        let displayName = profile(for: userId)?.displayName ?? "You"
         return UserProgress(
             userId: userId,
-            displayName: profile.displayName,
+            displayName: displayName,
+            cardioTotal: cardioTotal,
+            cardioProgress: cardioProgress,
+            strengthOverallProgress: strengthProgress,
+            totalProgress: totalProgress,
+            exerciseTotals: exerciseTotals
+        )
+    }
+
+    /// Same as calculateUserProgress but using provided challenge and exercises (for Supabase/active week).
+    static func calculateUserProgress(userId: String, logs: [WorkoutLog], challenge: WeekChallenge, exercises: [StrengthExercise], displayName: String? = nil) -> UserProgress {
+        let userLogs = logs.filter { $0.userId == userId }
+        var cardioTotal: Double = 0
+        var exerciseTotals: [String: Int] = [:]
+        for log in userLogs {
+            if log.logType == .cardio, let amt = log.cardioAmount { cardioTotal += amt }
+            if log.logType == .strength, let exId = log.exerciseId, let reps = log.strengthReps { exerciseTotals[exId, default: 0] += reps }
+        }
+        let cardioProgress = challenge.cardioTarget > 0 ? min(cardioTotal / challenge.cardioTarget, 1.0) : 0
+        var strengthProgress: Double = 0
+        if !exercises.isEmpty {
+            let perEx: [Double] = exercises.map { ex in
+                let total = exerciseTotals[ex.id] ?? 0
+                return Double(ex.targetReps) > 0 ? min(Double(total) / Double(ex.targetReps), 1.0) : 0
+            }
+            strengthProgress = perEx.reduce(0, +) / Double(perEx.count)
+        }
+        let totalProgress = (cardioProgress + strengthProgress) / 2
+        return UserProgress(
+            userId: userId,
+            displayName: displayName ?? profile(for: userId)?.displayName ?? "You",
             cardioTotal: cardioTotal,
             cardioProgress: cardioProgress,
             strengthOverallProgress: strengthProgress,
@@ -133,7 +163,7 @@ enum DummyData {
     static func activityFeed(logs: [WorkoutLog] = logs, limit: Int = 5) -> [ActivityFeedItem] {
         let sorted = logs.sorted { ($0.id > $1.id) }
         return Array(sorted.prefix(limit)).map { log in
-            let pro = profile(for: log.userId)!
+            let pro = profile(for: log.userId) ?? Profile(id: log.userId, displayName: "Someone")
             let exName = log.exerciseId.flatMap { eid in exercises.first(where: { $0.id == eid })?.name }
             return ActivityFeedItem(
                 id: log.id,
@@ -150,12 +180,12 @@ enum DummyData {
     }
 
     static func activeWeek() -> ActiveWeek {
-        let host = profile(for: weekAssignment.hostUserId)!
+        let hostName = profile(for: weekAssignment.hostUserId)?.displayName ?? "Host"
         return ActiveWeek(
             weekAssignment: weekAssignment,
             challenge: weekChallenge,
             exercises: exercises,
-            hostName: host.displayName
+            hostName: hostName
         )
     }
 
@@ -272,13 +302,33 @@ enum DummyData {
         return userTotals.values.map { min($0, weekChallenge.cardioTarget) }.reduce(0, +)
     }
 
+    /// Group cardio total using explicit cardio target (for Supabase/active week).
+    static func groupCardioTotal(logs: [WorkoutLog], cardioTargetPerPerson: Double) -> Double {
+        var userTotals: [String: Double] = [:]
+        for log in logs where log.logType == .cardio {
+            guard let amt = log.cardioAmount else { continue }
+            userTotals[log.userId, default: 0] += amt
+        }
+        return userTotals.values.map { min($0, cardioTargetPerPerson) }.reduce(0, +)
+    }
+
     static func groupCardioTarget(numberOfMembers: Int = memberships.count) -> Double {
         weekChallenge.cardioTarget * Double(numberOfMembers)
+    }
+
+    static func groupCardioTarget(numberOfMembers: Int, cardioTargetPerPerson: Double) -> Double {
+        cardioTargetPerPerson * Double(numberOfMembers)
     }
 
     static func groupCardioProgress(logs: [WorkoutLog] = logs, numberOfMembers: Int = memberships.count) -> Double {
         let total = groupCardioTotal(logs: logs, numberOfMembers: numberOfMembers)
         let target = groupCardioTarget(numberOfMembers: numberOfMembers)
+        return target > 0 ? min(total / target, 1) : 0
+    }
+
+    static func groupCardioProgress(logs: [WorkoutLog], numberOfMembers: Int, cardioTargetPerPerson: Double) -> Double {
+        let total = groupCardioTotal(logs: logs, cardioTargetPerPerson: cardioTargetPerPerson)
+        let target = groupCardioTarget(numberOfMembers: numberOfMembers, cardioTargetPerPerson: cardioTargetPerPerson)
         return target > 0 ? min(total / target, 1) : 0
     }
 
@@ -295,8 +345,32 @@ enum DummyData {
         return result
     }
 
+    static func groupExerciseTotals(logs: [WorkoutLog], exercises: [StrengthExercise]) -> [String: Int] {
+        var result: [String: Int] = [:]
+        for ex in exercises {
+            var userTotals: [String: Int] = [:]
+            for log in logs where log.logType == .strength && log.exerciseId == ex.id {
+                guard let reps = log.strengthReps else { continue }
+                userTotals[log.userId, default: 0] += reps
+            }
+            result[ex.id] = userTotals.values.map { min($0, ex.targetReps) }.reduce(0, +)
+        }
+        return result
+    }
+
     static func groupStrengthProgress(logs: [WorkoutLog] = logs, numberOfMembers: Int = memberships.count) -> Double {
         let totals = groupExerciseTotals(logs: logs, numberOfMembers: numberOfMembers)
+        guard !exercises.isEmpty else { return 0 }
+        let perEx: [Double] = exercises.map { ex in
+            let total = totals[ex.id] ?? 0
+            let target = ex.targetReps * numberOfMembers
+            return target > 0 ? min(Double(total) / Double(target), 1) : 0
+        }
+        return perEx.reduce(0, +) / Double(perEx.count)
+    }
+
+    static func groupStrengthProgress(logs: [WorkoutLog], numberOfMembers: Int, exercises: [StrengthExercise]) -> Double {
+        let totals = groupExerciseTotals(logs: logs, exercises: exercises)
         guard !exercises.isEmpty else { return 0 }
         let perEx: [Double] = exercises.map { ex in
             let total = totals[ex.id] ?? 0
@@ -324,6 +398,10 @@ enum DummyData {
     }
 
     static func progressOverTime(logs: [WorkoutLog] = logs, weekStart: String = weekAssignment.startDate, weekEnd: String = weekAssignment.endDate) -> [ChartPoint] {
+        progressOverTime(logs: logs, weekStart: weekStart, weekEnd: weekEnd, challenge: weekChallenge, exercises: exercises, memberIds: memberships.map(\.userId))
+    }
+
+    static func progressOverTime(logs: [WorkoutLog], weekStart: String, weekEnd: String, challenge: WeekChallenge, exercises: [StrengthExercise], memberIds: [String]) -> [ChartPoint] {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         formatter.timeZone = TimeZone.current
@@ -333,12 +411,12 @@ enum DummyData {
         while current <= end {
             let dateStr = formatter.string(from: current)
             var progressByUser: [String: Double] = [:]
-            for userId in memberships.map(\.userId) {
+            for userId in memberIds {
                 let logsUpTo = logs.filter { log in
                     guard let logDate = formatter.date(from: log.loggedAt) else { return false }
                     return log.userId == userId && logDate <= current
                 }
-                let prog = calculateUserProgress(userId: userId, logs: logsUpTo)
+                let prog = calculateUserProgress(userId: userId, logs: logsUpTo, challenge: challenge, exercises: exercises)
                 progressByUser[userId] = prog.totalProgress * 100
             }
             points.append(ChartPoint(date: dateStr, progressByUser: progressByUser))

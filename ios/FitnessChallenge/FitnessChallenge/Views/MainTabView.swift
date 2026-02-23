@@ -7,9 +7,10 @@ import SwiftUI
 
 struct MainTabView: View {
     @Bindable var appState: AppState
+    @State private var selectedTab = 0
 
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             NavigationStack {
                 VStack(spacing: 0) {
                     TopBarView(
@@ -28,19 +29,23 @@ struct MainTabView: View {
                         ProfileView(appState: appState, onSignOut: { appState.signOut() })
                     } else if dest == "Settings" {
                         SettingsView(appState: appState)
+                    } else if dest == "EditLogs" {
+                        EditLogsView(appState: appState)
                     }
                 }
             }
             .tabItem {
                 Label("Home", systemImage: "house.fill")
             }
+            .tag(0)
 
             NavigationStack {
-                LogView(appState: appState)
+                LogView(appState: appState, onSaveSwitchToHome: { selectedTab = 0 })
             }
             .tabItem {
                 Label("Log", systemImage: "plus.circle.fill")
             }
+            .tag(1)
 
             NavigationStack {
                 SettingsView(appState: appState)
@@ -48,6 +53,7 @@ struct MainTabView: View {
             .tabItem {
                 Label("Group", systemImage: "person.3.fill")
             }
+            .tag(2)
         }
         .tint(Theme.brown)
     }

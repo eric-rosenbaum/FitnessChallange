@@ -46,6 +46,39 @@ cd web && npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+### iOS app (Supabase backend)
+
+The iOS app uses the **same Supabase project** as the web app. To run with real data:
+
+1. **Supabase URL and key**  
+   In your [Supabase Dashboard](https://supabase.com/dashboard) → your project → **Settings → API**:
+   - Copy **Project URL**
+   - Copy **anon public** key
+
+2. **Add config to the iOS app**  
+   In Xcode, open the `FitnessChallenge` target and add your credentials using **one** of these options:
+
+   - **Option A – Plist (recommended)**  
+     - Copy `ios/FitnessChallenge/FitnessChallenge/Supabase-Config.example.plist` to `Supabase-Config.plist` in the same folder.
+     - Open `Supabase-Config.plist` and replace:
+       - `SUPABASE_URL` → your Project URL (e.g. `https://xxxx.supabase.co`)
+       - `SUPABASE_ANON_KEY` → your anon key
+     - In Xcode, add `Supabase-Config.plist` to the app target (File → Add Files to "FitnessChallenge" → select the file, ensure "Copy items if needed" and the target are checked).
+
+   - **Option B – Info.plist**  
+     Add the same two keys (`SUPABASE_URL`, `SUPABASE_ANON_KEY`) to the target’s **Info** tab (or a custom plist) with your values.
+
+3. **Xcode**  
+   - Open `ios/FitnessChallenge/FitnessChallenge.xcodeproj` in Xcode.
+   - The Supabase Swift package is already linked (SPM). If you see package resolution errors, use **File → Packages → Reset Package Caches** and then **Resolve Package Versions**.
+   - Select a simulator or device and run (**⌘R**).
+
+4. **Behavior**  
+   - **With config:** The app uses Supabase Auth (email/password) and your real database (groups, members, challenges, logs, etc.). Sign up or sign in, set your display name, then create a group or join with an invite code.
+   - **Without config:** The app runs with dummy data and a one-tap “Sign In (Dummy)” for quick testing.
+
+No extra Xcode capabilities (e.g. Keychain) are required beyond the default. Use the same Supabase project as the web app so data is shared.
+
 ### Build for production
 
 ```bash
