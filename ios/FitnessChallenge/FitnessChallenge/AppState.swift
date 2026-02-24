@@ -2,7 +2,7 @@
 //  AppState.swift
 //  FitnessChallenge
 //
-//  Global app state. Uses Supabase when configured; otherwise dummy data.
+//  Global app state. Uses Supabase for persistence. Session cache for instant UI on launch.
 //
 
 import SwiftUI
@@ -25,6 +25,8 @@ final class AppState {
     var leaderboardLoaded: [UserProgress] = []
     var activityFeedLoaded: [ActivityFeedItem] = []
     var upcomingAssignmentsLoaded: [WeekAssignment] = []
+    /// Next upcoming assignment where current user is host (within 3 days), with no challenge yet. For "You're the host" banner.
+    var upcomingAssignmentForUser: WeekAssignment?
     var activePunishment: ActivePunishment?
     var punishmentLogs: [PunishmentLog] = []
     var punishmentProgress: PunishmentProgress?
@@ -36,106 +38,106 @@ final class AppState {
     var authLoading = false
     var currentUserIdFromSession: String?
 
-    private var supabaseService: SupabaseService?
+    private var _supabaseService: SupabaseService?
+
+    private var supabaseService: SupabaseService? {
+        if let s = _supabaseService { return s }
+        guard SupabaseConfig.isConfigured, let url = SupabaseConfig.url, let key = SupabaseConfig.anonKey else { return nil }
+        let svc = SupabaseService(url: url, anonKey: key)
+        _supabaseService = svc
+        print("[\(dashboardLog)] Supabase client created (lazy), url=\(url.absoluteString)")
+        return svc
+    }
 
     var useSupabase: Bool { SupabaseConfig.isConfigured }
 
     init() {
-        self.logs = DummyData.logs
-        self.memberships = DummyData.memberships
-        self.groupName = DummyData.groupName
-        self.groupInviteCode = DummyData.groupInviteCode
-        self.punishments = DummyData.punishments
-        let configured = SupabaseConfig.isConfigured
-        print("[\(dashboardLog)] useSupabase=\(configured)")
-        if configured, let url = SupabaseConfig.url, let key = SupabaseConfig.anonKey {
-            self.supabaseService = SupabaseService(url: url, anonKey: key)
-            print("[\(dashboardLog)] Supabase client created, url=\(url.absoluteString)")
-        } else {
-            print("[\(dashboardLog)] Supabase not configured or missing url/key, using dummy data")
+        self.logs = []
+        self.memberships = []
+        self.groupName = ""
+        self.groupInviteCode = ""
+        self.punishments = []
+        if let cache = SessionCache.load() {
+            currentUserIdFromSession = cache.currentUserId
+            currentUserDisplayNameStored = cache.currentUserDisplayName
+            groupId = cache.groupId
+            groupName = cache.groupName
+            groupInviteCode = cache.groupInviteCode
+            memberships = cache.memberships
+            activeWeekLoaded = cache.activeWeek
+            logs = cache.logs
+            leaderboardLoaded = cache.leaderboard
+            activityFeedLoaded = cache.activityFeed
+            upcomingAssignmentsLoaded = cache.upcomingAssignments
+            punishments = cache.punishments
+            activePunishment = cache.activePunishment
+            punishmentLogs = cache.punishmentLogs
+            punishmentProgress = cache.punishmentProgress
+            punishmentLeaderboard = cache.punishmentLeaderboard
+            leaderboardPunishment = cache.leaderboardPunishment
+            isLoggedIn = true
+            hasOnboarded = true
+            print("[\(dashboardLog)] restored from cache")
         }
+        print("[\(dashboardLog)] useSupabase=\(SupabaseConfig.isConfigured)")
     }
 
     var currentUserId: String {
-        if useSupabase, let id = currentUserIdFromSession { return id }
-        return DummyData.currentUserId
+        currentUserIdFromSession ?? ""
     }
 
     var currentUserDisplayName: String {
-        if useSupabase, let n = currentUserDisplayNameStored { return n }
-        return DummyData.profile(for: currentUserId)?.displayName ?? "You"
+        currentUserDisplayNameStored ?? "You"
     }
 
     private var currentUserDisplayNameStored: String?
     func setCurrentUserDisplayName(_ name: String) { currentUserDisplayNameStored = name }
 
-    /// Display name for a user (for members list, etc.). When useSupabase uses leaderboard/current user; otherwise DummyData.
     func displayName(for userId: String) -> String {
-        if useSupabase {
-            if userId.lowercased() == currentUserId.lowercased() { return currentUserDisplayName }
-            return leaderboardLoaded.first(where: { $0.userId.lowercased() == userId.lowercased() })?.displayName ?? "Member"
-        }
-        return DummyData.profile(for: userId)?.displayName ?? "Member"
+        if userId.lowercased() == currentUserId.lowercased() { return currentUserDisplayName }
+        return leaderboardLoaded.first(where: { $0.userId.lowercased() == userId.lowercased() })?.displayName ?? "Member"
     }
 
     var isAdmin: Bool {
         memberships.first { $0.userId.lowercased() == currentUserId.lowercased() }?.role == .admin
     }
 
-    var hasGroup: Bool {
-        if useSupabase { return groupId != nil }
-        return true
-    }
+    var hasGroup: Bool { groupId != nil }
 
     var group: Group {
-        if useSupabase, let id = groupId {
-            return Group(id: id, name: groupName, inviteCode: groupInviteCode)
-        }
-        return Group(id: "group-1", name: groupName, inviteCode: groupInviteCode)
+        Group(id: groupId ?? "", name: groupName, inviteCode: groupInviteCode)
     }
 
     var activeWeek: ActiveWeek {
-        if useSupabase, let w = activeWeekLoaded { return w }
-        if useSupabase {
-            // No active week from Supabase — use placeholder so we never mix in DummyData (e.g. "challenge-1").
-            let placeholder = WeekAssignment(id: "", groupId: groupId ?? "", startDate: "", endDate: "", hostUserId: "")
-            return ActiveWeek(weekAssignment: placeholder, challenge: nil, exercises: [], hostName: "")
-        }
-        return DummyData.activeWeek()
+        if let w = activeWeekLoaded { return w }
+        let placeholder = WeekAssignment(id: "", groupId: groupId ?? "", startDate: "", endDate: "", hostUserId: "")
+        return ActiveWeek(weekAssignment: placeholder, challenge: nil, exercises: [], hostName: "")
     }
 
-    /// Computed from logs (same source as group metrics) so Your Progress and Group Progress update together when refresh completes.
     var currentUserProgress: UserProgress {
-        if useSupabase, let ch = challenge {
-            return DummyData.calculateUserProgress(userId: currentUserId, logs: logs, challenge: ch, exercises: exercises, displayName: currentUserDisplayName)
+        if let ch = challenge {
+            return ProgressCalculations.calculateUserProgress(userId: currentUserId, logs: logs, challenge: ch, exercises: exercises, displayName: currentUserDisplayName)
         }
-        if useSupabase {
-            return UserProgress(userId: currentUserId, displayName: currentUserDisplayName, cardioTotal: 0, cardioProgress: 0, strengthOverallProgress: 0, totalProgress: 0, exerciseTotals: [:])
-        }
-        return DummyData.calculateUserProgress(userId: currentUserId, logs: logs)
+        return UserProgress(userId: currentUserId, displayName: currentUserDisplayName, cardioTotal: 0, cardioProgress: 0, strengthOverallProgress: 0, totalProgress: 0, exerciseTotals: [:])
     }
 
     var currentUserCardioBreakdown: [String: Double] {
-        DummyData.userCardioBreakdown(userId: currentUserId, logs: logs)
+        ProgressCalculations.userCardioBreakdown(userId: currentUserId, logs: logs)
     }
 
     var leaderboard: [UserProgress] {
-        if useSupabase, !leaderboardLoaded.isEmpty { return leaderboardLoaded }
-        if useSupabase, let ch = challenge {
+        if !leaderboardLoaded.isEmpty { return leaderboardLoaded }
+        if let ch = challenge {
             let participantIds = memberships.filter { $0.memberType == .participant }.map(\.userId)
             let list = participantIds.map { uid in
-                DummyData.calculateUserProgress(userId: uid, logs: logs, challenge: ch, exercises: exercises, displayName: uid == currentUserId ? currentUserDisplayName : nil)
+                ProgressCalculations.calculateUserProgress(userId: uid, logs: logs, challenge: ch, exercises: exercises, displayName: uid == currentUserId ? currentUserDisplayName : nil)
             }
             return list.sorted { $0.totalProgress > $1.totalProgress }
         }
-        if useSupabase { return [] }
-        return DummyData.leaderboard(logs: logs)
+        return []
     }
 
-    var activityFeed: [ActivityFeedItem] {
-        if useSupabase { return activityFeedLoaded }
-        return DummyData.activityFeed(logs: logs, limit: 50)
-    }
+    var activityFeed: [ActivityFeedItem] { activityFeedLoaded }
 
     var exercises: [StrengthExercise] {
         activeWeek.exercises
@@ -145,60 +147,36 @@ final class AppState {
         activeWeek.challenge
     }
 
-    /// When using Supabase, true if we have a week assignment for the current week (so host/dates/challenge can be edited or created).
-    var hasCurrentWeekAssignment: Bool {
-        useSupabase ? (activeWeekLoaded != nil) : true
-    }
+    var hasCurrentWeekAssignment: Bool { activeWeekLoaded != nil }
 
     var numberOfMembers: Int { memberships.count }
-    /// When using Supabase, count only participants for group targets (matches getLeaderboard).
-    private var participantCount: Int {
-        if useSupabase { return memberships.filter { $0.memberType == .participant }.count }
-        return memberships.count
-    }
+    private var participantCount: Int { memberships.filter { $0.memberType == .participant }.count }
+
     var groupCardioTotal: Double {
-        if useSupabase, let ch = challenge {
-            return DummyData.groupCardioTotal(logs: logs, cardioTargetPerPerson: ch.cardioTarget)
-        }
-        if useSupabase { return 0 }
-        return DummyData.groupCardioTotal(logs: logs, numberOfMembers: numberOfMembers)
+        guard let ch = challenge else { return 0 }
+        return ProgressCalculations.groupCardioTotal(logs: logs, cardioTargetPerPerson: ch.cardioTarget)
     }
     var groupCardioTarget: Double {
-        if useSupabase, let ch = challenge {
-            return DummyData.groupCardioTarget(numberOfMembers: max(participantCount, 1), cardioTargetPerPerson: ch.cardioTarget)
-        }
-        if useSupabase { return 0 }
-        return DummyData.groupCardioTarget(numberOfMembers: numberOfMembers)
+        guard let ch = challenge else { return 0 }
+        return ProgressCalculations.groupCardioTarget(numberOfMembers: max(participantCount, 1), cardioTargetPerPerson: ch.cardioTarget)
     }
     var groupCardioProgress: Double {
-        if useSupabase, let ch = challenge {
-            return DummyData.groupCardioProgress(logs: logs, numberOfMembers: max(participantCount, 1), cardioTargetPerPerson: ch.cardioTarget)
-        }
-        if useSupabase { return 0 }
-        return DummyData.groupCardioProgress(logs: logs, numberOfMembers: numberOfMembers)
+        guard let ch = challenge else { return 0 }
+        return ProgressCalculations.groupCardioProgress(logs: logs, numberOfMembers: max(participantCount, 1), cardioTargetPerPerson: ch.cardioTarget)
     }
     var groupStrengthProgress: Double {
-        if useSupabase, let ch = challenge, !exercises.isEmpty {
-            return DummyData.groupStrengthProgress(logs: logs, numberOfMembers: max(participantCount, 1), exercises: exercises)
-        }
-        if useSupabase { return 0 }
-        return DummyData.groupStrengthProgress(logs: logs, numberOfMembers: numberOfMembers)
+        guard let ch = challenge, !exercises.isEmpty else { return 0 }
+        return ProgressCalculations.groupStrengthProgress(logs: logs, numberOfMembers: max(participantCount, 1), exercises: exercises)
     }
-    var groupCardioBreakdown: [String: Double] { DummyData.groupCardioBreakdown(logs: logs) }
+    var groupCardioBreakdown: [String: Double] { ProgressCalculations.groupCardioBreakdown(logs: logs) }
     var groupExerciseTotals: [String: Int] {
-        if useSupabase, let ch = challenge, !exercises.isEmpty {
-            return DummyData.groupExerciseTotals(logs: logs, exercises: exercises)
-        }
-        if useSupabase { return [:] }
-        return DummyData.groupExerciseTotals(logs: logs, numberOfMembers: numberOfMembers)
+        guard let ch = challenge, !exercises.isEmpty else { return [:] }
+        return ProgressCalculations.groupExerciseTotals(logs: logs, exercises: exercises)
     }
-    var progressOverTimeChartPoints: [DummyData.ChartPoint] {
-        if useSupabase, let ch = challenge {
-            let memberIds = memberships.filter { $0.memberType == .participant }.map(\.userId)
-            return DummyData.progressOverTime(logs: logs, weekStart: activeWeek.weekAssignment.startDate, weekEnd: activeWeek.weekAssignment.endDate, challenge: ch, exercises: exercises, memberIds: memberIds.isEmpty ? [currentUserId] : memberIds)
-        }
-        if useSupabase { return [] }
-        return DummyData.progressOverTime(logs: logs, weekStart: activeWeek.weekAssignment.startDate, weekEnd: activeWeek.weekAssignment.endDate)
+    var progressOverTimeChartPoints: [ProgressCalculations.ChartPoint] {
+        guard let ch = challenge else { return [] }
+        let memberIds = memberships.filter { $0.memberType == .participant }.map(\.userId)
+        return ProgressCalculations.progressOverTime(logs: logs, weekStart: activeWeek.weekAssignment.startDate, weekEnd: activeWeek.weekAssignment.endDate, challenge: ch, exercises: exercises, memberIds: memberIds.isEmpty ? [currentUserId] : memberIds)
     }
 
     var timeRemainingText: String {
@@ -284,20 +262,22 @@ final class AppState {
         leaderboardLoaded = []
         activityFeedLoaded = []
         upcomingAssignmentsLoaded = []
+        upcomingAssignmentForUser = nil
         activePunishment = nil
         punishmentLogs = []
         punishmentProgress = nil
         punishmentLeaderboard = []
         leaderboardPunishment = nil
+        SessionCache.clear()
     }
 
     func signOut() {
         isLoggedIn = false
         hasOnboarded = false
+        currentUserIdFromSession = nil
+        currentUserDisplayNameStored = nil
+        clearGroupState()
         if useSupabase {
-            currentUserIdFromSession = nil
-            currentUserDisplayNameStored = nil
-            clearGroupState()
             Task { try? await supabaseService?.signOut() }
         }
     }
@@ -319,12 +299,14 @@ final class AppState {
                 currentUserDisplayNameStored = nil
                 groupId = nil
                 hasOnboarded = false
+                SessionCache.clear()
                 print("[\(dashboardLog)] No session, signed out")
                 return
             }
             if let uid = await svc.currentUserId {
                 currentUserIdFromSession = uid
                 isLoggedIn = true
+                hasOnboarded = true  // Session = existing user; skip onboarding
                 print("[\(dashboardLog)] currentUserId=\(uid.prefix(8))...")
                 let profile = try? await svc.getProfile(userId: uid)
                 if let profile { setCurrentUserDisplayName(profile.displayName) }
@@ -334,12 +316,10 @@ final class AppState {
                     groupInviteCode = grp.inviteCode
                     print("[\(dashboardLog)] group=\(grp.name), id=\(grp.id.prefix(8))...")
                     memberships = try await svc.getGroupMemberships(groupId: grp.id)
-                    hasOnboarded = true
-                    print("[\(dashboardLog)] memberships=\(memberships.count), calling refresh()")
-                    await refresh()
+                    print("[\(dashboardLog)] memberships=\(memberships.count), refreshing in background")
+                    Task { await refresh() }
                 } else {
-                    // Session restore: never show onboarding (display name only collected at sign up)
-                    hasOnboarded = true
+                    clearGroupState()
                     print("[\(dashboardLog)] No group membership, skipping onboarding")
                 }
             } else {
@@ -358,6 +338,7 @@ final class AppState {
         if let uid = await svc.currentUserId {
             currentUserIdFromSession = uid
             isLoggedIn = true
+            hasOnboarded = true  // Sign-in = existing user; skip onboarding
             if let profile = try? await svc.getProfile(userId: uid) {
                 setCurrentUserDisplayName(profile.displayName)
             }
@@ -367,10 +348,7 @@ final class AppState {
                 groupInviteCode = grp.inviteCode
                 memberships = try await svc.getGroupMemberships(groupId: grp.id)
                 hasOnboarded = true
-                await refresh()
-            } else {
-                // Sign-in: never show onboarding (display name only collected at sign up)
-                hasOnboarded = true
+                Task { await refresh() }
             }
         }
     }
@@ -397,33 +375,59 @@ final class AppState {
         loadError = nil
         print("[\(dashboardLog)] refresh() start for group=\(gid.prefix(8))...")
         defer { isLoading = false }
+        let uid = currentUserId
         do {
-            memberships = try await svc.getGroupMemberships(groupId: gid)
+            // Wave 1: parallel fetches that only need groupId
+            async let membershipsTask = svc.getGroupMemberships(groupId: gid)
+            async let activeWeekTask = svc.getActiveWeek(groupId: gid)
+            async let leaderboardTask = svc.getLeaderboard(groupId: gid)
+            async let activityFeedTask = svc.getActivityFeed(groupId: gid, limit: 50)
+            async let punishmentsTask = svc.getAllPunishments(groupId: gid)
+            async let activePunishmentTask = svc.getActivePunishmentForUser(userId: uid, groupId: gid)
+
+            memberships = try await membershipsTask
             print("[\(dashboardLog)] refresh memberships=\(memberships.count)")
-            activeWeekLoaded = try await svc.getActiveWeek(groupId: gid)
+            activeWeekLoaded = try await activeWeekTask
             let hasWeek = activeWeekLoaded != nil
             let hasChallenge = activeWeekLoaded?.challenge != nil
             print("[\(dashboardLog)] refresh activeWeek=\(hasWeek), challenge=\(hasChallenge)")
-            upcomingAssignmentsLoaded = try await svc.getUpcomingAssignments(groupId: gid, excludeAssignmentId: activeWeekLoaded?.weekAssignment.id)
-            if let week = activeWeekLoaded, let ch = week.challenge {
-                logs = try await svc.getWorkoutLogs(weekChallengeId: ch.id, userId: nil)
-                print("[\(dashboardLog)] refresh logs=\(logs.count) for challenge=\(ch.id.prefix(8))...")
-            } else {
-                logs = []
-                print("[\(dashboardLog)] refresh no challenge, logs=0")
-            }
-            leaderboardLoaded = try await svc.getLeaderboard(groupId: gid)
+            leaderboardLoaded = try await leaderboardTask
             print("[\(dashboardLog)] refresh leaderboard=\(leaderboardLoaded.count)")
-            activityFeedLoaded = try await svc.getActivityFeed(groupId: gid, limit: 50)
+            activityFeedLoaded = try await activityFeedTask
             print("[\(dashboardLog)] refresh activityFeed=\(activityFeedLoaded.count)")
-            punishments = try await svc.getAllPunishments(groupId: gid)
-            // Active punishment for current user and/or group (for dashboard cards)
-            let uid = currentUserId
-            activePunishment = try? await svc.getActivePunishmentForUser(userId: uid, groupId: gid)
+            punishments = try await punishmentsTask
+            activePunishment = try? await activePunishmentTask
+
+            // Wave 2: parallel fetches that depend on activeWeek
+            async let upcomingTask = svc.getUpcomingAssignments(groupId: gid, excludeAssignmentId: activeWeekLoaded?.weekAssignment.id)
+            let logsTask: Task<[WorkoutLog], Error> = Task {
+                if let ch = activeWeekLoaded?.challenge {
+                    return try await svc.getWorkoutLogs(weekChallengeId: ch.id, userId: nil)
+                }
+                return []
+            }
+
+            upcomingAssignmentsLoaded = try await upcomingTask
+            logs = (try? await logsTask.value) ?? []
+            print("[\(dashboardLog)] refresh logs=\(logs.count)")
+
+            // Upcoming host banner: assignment where user is host, within 3 days, no challenge yet
+            if let assignment = try? await svc.getUpcomingAssignmentForUser(userId: uid, groupId: gid, daysAhead: 3) {
+                let result = try? await svc.getChallengeForAssignment(assignmentId: assignment.id)
+                let (challenge, _) = result ?? (nil, [])
+                upcomingAssignmentForUser = challenge == nil ? assignment : nil
+            } else {
+                upcomingAssignmentForUser = nil
+            }
+
+            // Wave 3: punishment details (depend on activePunishment or punishments)
             if let ap = activePunishment {
-                punishmentLogs = (try? await svc.getPunishmentLogs(punishmentId: ap.punishment.id)) ?? []
-                punishmentProgress = try? await svc.getUserPunishmentProgress(userId: uid, punishmentId: ap.punishment.id)
-                punishmentLeaderboard = (try? await svc.getPunishmentLeaderboard(punishmentId: ap.punishment.id)) ?? []
+                async let punishmentLogsTask = svc.getPunishmentLogs(punishmentId: ap.punishment.id)
+                async let punishmentProgressTask = svc.getUserPunishmentProgress(userId: uid, punishmentId: ap.punishment.id)
+                async let punishmentLeaderboardTask = svc.getPunishmentLeaderboard(punishmentId: ap.punishment.id)
+                punishmentLogs = (try? await punishmentLogsTask) ?? []
+                punishmentProgress = try? await punishmentProgressTask
+                punishmentLeaderboard = (try? await punishmentLeaderboardTask) ?? []
                 leaderboardPunishment = ap
             } else {
                 punishmentLogs = []
@@ -432,16 +436,19 @@ final class AppState {
                 let formatter = DateFormatter()
                 formatter.dateFormat = "yyyy-MM-dd"
                 let today = formatter.string(from: Date())
-                let allP = punishments
-                if let active = allP.first(where: { today >= $0.startDate && today <= $0.endDate }) {
-                    punishmentLeaderboard = (try? await svc.getPunishmentLeaderboard(punishmentId: active.id)) ?? []
-                    let exs = (try? await svc.getPunishmentExercises(punishmentId: active.id)) ?? []
+                if let active = punishments.first(where: { today >= $0.startDate && today <= $0.endDate }) {
+                    async let leaderboardTask = svc.getPunishmentLeaderboard(punishmentId: active.id)
+                    async let exercisesTask = svc.getPunishmentExercises(punishmentId: active.id)
+                    async let logsTask = svc.getPunishmentLogs(punishmentId: active.id)
+                    punishmentLeaderboard = (try? await leaderboardTask) ?? []
+                    let exs = (try? await exercisesTask) ?? []
                     leaderboardPunishment = ActivePunishment(punishment: active, exercises: exs, assignedUserIds: active.assignedUserIds)
-                    punishmentLogs = (try? await svc.getPunishmentLogs(punishmentId: active.id)) ?? []
+                    punishmentLogs = (try? await logsTask) ?? []
                 } else {
                     leaderboardPunishment = nil
                 }
             }
+            saveToCache()
             print("[\(dashboardLog)] refresh done")
         } catch {
             loadError = error.localizedDescription
@@ -449,7 +456,31 @@ final class AppState {
         }
     }
 
-    // MARK: - Mutations (Supabase or dummy)
+    private func saveToCache() {
+        guard let gid = groupId, !gid.isEmpty, let uid = currentUserIdFromSession, !uid.isEmpty else { return }
+        var cache = SessionCache(
+            currentUserId: uid,
+            currentUserDisplayName: currentUserDisplayNameStored ?? "You",
+            groupId: gid,
+            groupName: groupName,
+            groupInviteCode: groupInviteCode,
+            memberships: memberships,
+            activeWeek: activeWeekLoaded,
+            logs: logs,
+            leaderboard: leaderboardLoaded,
+            activityFeed: activityFeedLoaded,
+            upcomingAssignments: upcomingAssignmentsLoaded,
+            punishments: punishments,
+            activePunishment: activePunishment,
+            punishmentLogs: punishmentLogs,
+            punishmentProgress: punishmentProgress,
+            punishmentLeaderboard: punishmentLeaderboard,
+            leaderboardPunishment: leaderboardPunishment
+        )
+        cache.save()
+    }
+
+    // MARK: - Mutations
 
     /// completion(success) is called when done; call with true on success so UI can dismiss, false on error so isSaving is cleared.
     func addLog(_ log: WorkoutLog, completion: (@Sendable (Bool) -> Void)? = nil) {
@@ -477,8 +508,36 @@ final class AppState {
             }
             return
         }
-        DummyData.addLog(log, into: &logs)
-        completion?(true)
+        completion?(false)
+    }
+
+    /// Add a punishment log (for users with active punishment). completion(success).
+    func addPunishmentLog(punishmentId: String, loggedAt: String, logType: LogType, cardioActivity: CardioActivity?, cardioAmount: Double?, exerciseId: String?, strengthReps: Int?, completion: (@Sendable (Bool) -> Void)? = nil) {
+        guard useSupabase, let svc = supabaseService, let gid = groupId else {
+            completion?(false)
+            return
+        }
+        Task {
+            do {
+                _ = try await svc.createPunishmentLog(
+                    groupId: gid,
+                    punishmentId: punishmentId,
+                    userId: currentUserId,
+                    loggedAt: loggedAt,
+                    logType: logType,
+                    cardioActivity: cardioActivity,
+                    cardioAmount: cardioAmount,
+                    exerciseId: exerciseId,
+                    strengthReps: strengthReps,
+                    note: nil
+                )
+                await MainActor.run { completion?(true) }
+                await refresh()
+            } catch {
+                await MainActor.run { loadError = error.localizedDescription }
+                await MainActor.run { completion?(false) }
+            }
+        }
     }
 
     func updateLog(logId: String, cardioAmount: Double? = nil, strengthReps: Int? = nil) async {
@@ -497,16 +556,16 @@ final class AppState {
     }
 
     func deleteLog(logId: String) async {
+        logs.removeAll { $0.id == logId }
         if useSupabase, let svc = supabaseService {
             do {
                 try await svc.deleteWorkoutLog(logId: logId)
-                await refresh()
+                saveToCache()
             } catch {
                 await MainActor.run { loadError = error.localizedDescription }
+                await refresh()
             }
-            return
         }
-        logs.removeAll { $0.id == logId }
     }
 
     func updateGroupName(_ name: String) {
@@ -516,9 +575,7 @@ final class AppState {
                 try? await svc.updateGroupName(groupId: gid, name: name)
                 await refresh()
             }
-            return
         }
-        DummyData.updateGroupName(name)
     }
 
     func removeMember(userId: String) {
@@ -544,7 +601,6 @@ final class AppState {
             }
             return
         }
-        DummyData.removeMember(userId: userId)
         if isLeavingSelf {
             clearGroupState()
         }
@@ -558,9 +614,7 @@ final class AppState {
                 try? await svc.updateMemberType(groupId: gid, userId: userId, memberType: memberType)
                 await refresh()
             }
-            return
         }
-        DummyData.updateMemberType(userId: userId, memberType: memberType)
     }
 
     func addPunishment(_ p: Punishment) {
@@ -579,9 +633,7 @@ final class AppState {
                 )
                 await refresh()
             }
-            return
         }
-        DummyData.addPunishment(p)
     }
 
     func deletePunishment(id: String) {
@@ -591,9 +643,7 @@ final class AppState {
                 try? await svc.deletePunishment(punishmentId: id)
                 await refresh()
             }
-            return
         }
-        DummyData.deletePunishment(id: id)
     }
 
     func updateMyDisplayName(_ name: String) {
@@ -604,19 +654,15 @@ final class AppState {
             }
             return
         }
-        DummyData.updateDisplayName(userId: currentUserId, name: name)
+        setCurrentUserDisplayName(name)
     }
 
     var upcomingAssignments: [WeekAssignment] {
-        if useSupabase, !upcomingAssignmentsLoaded.isEmpty { return upcomingAssignmentsLoaded }
-        return DummyData.upcomingAssignments
+        upcomingAssignmentsLoaded
     }
 
     func updateCurrentWeekDates(start: String, end: String) {
-        guard useSupabase, let svc = supabaseService, let aid = activeWeekLoaded?.weekAssignment.id else {
-            DummyData.updateCurrentWeekDates(start: start, end: end)
-            return
-        }
+        guard useSupabase, let svc = supabaseService, let aid = activeWeekLoaded?.weekAssignment.id else { return }
         Task {
             try? await svc.updateWeekAssignment(assignmentId: aid, hostUserId: activeWeekLoaded!.weekAssignment.hostUserId, assignedBy: currentUserId, startDate: start, endDate: end)
             await refresh()
@@ -624,10 +670,7 @@ final class AppState {
     }
 
     func updateCurrentWeekHost(userId: String) {
-        guard useSupabase, let svc = supabaseService, let aid = activeWeekLoaded?.weekAssignment.id else {
-            DummyData.updateCurrentWeekHost(userId: userId)
-            return
-        }
+        guard useSupabase, let svc = supabaseService, let aid = activeWeekLoaded?.weekAssignment.id else { return }
         Task {
             try? await svc.updateWeekAssignment(assignmentId: aid, hostUserId: userId, assignedBy: currentUserId, startDate: nil, endDate: nil)
             await refresh()
@@ -635,10 +678,7 @@ final class AppState {
     }
 
     func updateChallenge(cardioMetric: CardioMetric? = nil, cardioTarget: Double? = nil) {
-        guard useSupabase, let svc = supabaseService, let ch = activeWeekLoaded?.challenge else {
-            DummyData.updateChallenge(cardioMetric: cardioMetric, cardioTarget: cardioTarget)
-            return
-        }
+        guard useSupabase, let svc = supabaseService, let ch = activeWeekLoaded?.challenge else { return }
         let metric = cardioMetric ?? ch.cardioMetric
         let target = cardioTarget ?? ch.cardioTarget
         let exs = activeWeekLoaded!.exercises.map { (id: $0.id as String?, name: $0.name, targetReps: $0.targetReps) }
@@ -649,10 +689,7 @@ final class AppState {
     }
 
     func addExercise(name: String, targetReps: Int) {
-        guard useSupabase, let svc = supabaseService, let ch = activeWeekLoaded?.challenge else {
-            DummyData.addExercise(name: name, targetReps: targetReps)
-            return
-        }
+        guard useSupabase, let svc = supabaseService, let ch = activeWeekLoaded?.challenge else { return }
         let exs = activeWeekLoaded!.exercises.map { (id: $0.id as String?, name: $0.name, targetReps: $0.targetReps) } + [(id: nil as String?, name: name, targetReps: targetReps)]
         Task {
             try? await svc.updateWeekChallenge(challengeId: ch.id, cardioMetric: ch.cardioMetric, cardioTarget: ch.cardioTarget, exercises: exs)
@@ -661,10 +698,7 @@ final class AppState {
     }
 
     func removeExercise(id: String) {
-        guard useSupabase, let svc = supabaseService, let ch = activeWeekLoaded?.challenge else {
-            DummyData.removeExercise(id: id)
-            return
-        }
+        guard useSupabase, let svc = supabaseService, let ch = activeWeekLoaded?.challenge else { return }
         let exs = activeWeekLoaded!.exercises.filter { $0.id != id }.map { (id: $0.id as String?, name: $0.name, targetReps: $0.targetReps) }
         Task {
             try? await svc.updateWeekChallenge(challengeId: ch.id, cardioMetric: ch.cardioMetric, cardioTarget: ch.cardioTarget, exercises: exs)
@@ -673,10 +707,7 @@ final class AppState {
     }
 
     func updateExercise(id: String, name: String? = nil, targetReps: Int? = nil) {
-        guard useSupabase, let svc = supabaseService, let ch = activeWeekLoaded?.challenge else {
-            DummyData.updateExercise(id: id, name: name, targetReps: targetReps)
-            return
-        }
+        guard useSupabase, let svc = supabaseService, let ch = activeWeekLoaded?.challenge else { return }
         var exs: [(id: String?, name: String, targetReps: Int)] = activeWeekLoaded!.exercises.map { ($0.id as String?, $0.name, $0.targetReps) }
         if let i = exs.firstIndex(where: { $0.id == id }) {
             exs[i] = (exs[i].id, name ?? exs[i].name, targetReps ?? exs[i].targetReps)
@@ -688,10 +719,7 @@ final class AppState {
     }
 
     func addUpcomingAssignment(hostUserId: String, startDate: String, endDate: String) {
-        guard useSupabase, let svc = supabaseService, let gid = groupId else {
-            DummyData.addUpcomingAssignment(hostUserId: hostUserId, startDate: startDate, endDate: endDate)
-            return
-        }
+        guard useSupabase, let svc = supabaseService, let gid = groupId else { return }
         Task {
             _ = try? await svc.createWeekAssignment(groupId: gid, startDate: startDate, endDate: endDate, hostUserId: hostUserId, assignedBy: currentUserId)
             await refresh()
@@ -709,6 +737,37 @@ final class AppState {
         }
     }
 
+    /// Fetch challenge and exercises for an assignment. Returns nil if no challenge exists.
+    func getChallengeForAssignment(assignmentId: String) async -> (WeekChallenge, [StrengthExercise])? {
+        guard let svc = supabaseService else { return nil }
+        let result = try? await svc.getChallengeForAssignment(assignmentId: assignmentId)
+        let (ch, exs) = result ?? (nil, [])
+        guard let ch = ch else { return nil }
+        return (ch, exs)
+    }
+
+    /// Create challenge for a specific assignment (e.g. upcoming week). Used when user taps "You're the host" banner.
+    func createChallengeForAssignment(assignmentId: String, cardioMetric: CardioMetric, cardioTarget: Double, exercises: [(name: String, targetReps: Int)]) {
+        guard useSupabase, let svc = supabaseService, let gid = groupId else { return }
+        Task {
+            _ = try? await svc.createWeekChallenge(groupId: gid, weekAssignmentId: assignmentId, createdBy: currentUserId, cardioMetric: cardioMetric, cardioTarget: cardioTarget, exercises: exercises)
+            await refresh()
+        }
+    }
+
+    /// Update challenge for a specific assignment (e.g. upcoming week). Used when host edits exercises in Group settings.
+    func updateChallengeForAssignment(assignmentId: String, cardioMetric: CardioMetric, cardioTarget: Double, exercises: [(name: String, targetReps: Int)]) {
+        guard useSupabase, let svc = supabaseService else { return }
+        Task {
+            let result = try? await svc.getChallengeForAssignment(assignmentId: assignmentId)
+            let (ch, _) = result ?? (nil, [])
+            guard let ch = ch else { return }
+            let exs = exercises.map { (id: nil as String?, name: $0.name, targetReps: $0.targetReps) }
+            try? await svc.updateWeekChallenge(challengeId: ch.id, cardioMetric: cardioMetric, cardioTarget: cardioTarget, exercises: exs)
+            await refresh()
+        }
+    }
+
     /// Delete the current week assignment (admin). Refreshes after delete.
     func deleteCurrentWeekAssignment() {
         guard useSupabase, let svc = supabaseService, let aid = activeWeekLoaded?.weekAssignment.id else { return }
@@ -719,10 +778,7 @@ final class AppState {
     }
 
     func removeUpcomingAssignment(id: String) {
-        guard useSupabase, let svc = supabaseService else {
-            DummyData.removeUpcomingAssignment(id: id)
-            return
-        }
+        guard useSupabase, let svc = supabaseService else { return }
         Task {
             try? await svc.deleteWeekAssignment(assignmentId: id)
             await refresh()
@@ -730,10 +786,7 @@ final class AppState {
     }
 
     func updateUpcomingAssignment(id: String, hostUserId: String? = nil, startDate: String? = nil, endDate: String? = nil) {
-        guard useSupabase, let svc = supabaseService else {
-            DummyData.updateUpcomingAssignment(id: id, hostUserId: hostUserId, startDate: startDate, endDate: endDate)
-            return
-        }
+        guard useSupabase, let svc = supabaseService else { return }
         let assignment = upcomingAssignmentsLoaded.first { $0.id == id }
         let host = hostUserId ?? assignment?.hostUserId ?? currentUserId
         Task {

@@ -197,6 +197,19 @@ private struct PunishmentExerciseInsert: Encodable {
     let sort_order: Int
 }
 
+private struct PunishmentLogInsert: Encodable {
+    let group_id: String
+    let punishment_id: String
+    let user_id: String
+    let logged_at: String
+    let log_type: String
+    var cardio_activity: String?
+    var cardio_amount: Double?
+    var exercise_id: String?
+    var strength_reps: Int?
+    var note: String?
+}
+
 private struct PunishmentUpdate: Encodable {
     let start_date: String
     let end_date: String
@@ -450,6 +463,29 @@ final class SupabaseService {
         return ActiveWeek(weekAssignment: assignment, challenge: challenge, exercises: exercises, hostName: hostName)
     }
 
+    /// Returns the next upcoming assignment where the user is host, within the next `daysAhead` days. Used for "You're the host" banner.
+    func getUpcomingAssignmentForUser(userId: String, groupId: String, daysAhead: Int = 3) async throws -> WeekAssignment? {
+        let today = Self.localDateString()
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = TimeZone.current
+        let todayDate = formatter.date(from: today) ?? Date()
+        let future = Calendar.current.date(byAdding: .day, value: daysAhead, to: todayDate) ?? Date()
+        let futureStr = formatter.string(from: future)
+        let list: [WeekAssignmentDTO] = try await client.from("week_assignments")
+            .select()
+            .eq("group_id", value: groupId)
+            .eq("host_user_id", value: userId)
+            .gte("start_date", value: today)
+            .lte("start_date", value: futureStr)
+            .order("start_date", ascending: true)
+            .limit(1)
+            .execute()
+            .value
+        guard let a = list.first else { return nil }
+        return WeekAssignment(id: a.id, groupId: a.group_id, startDate: String(a.start_date.prefix(10)), endDate: String(a.end_date.prefix(10)), hostUserId: a.host_user_id)
+    }
+
     func getUpcomingAssignments(groupId: String, excludeAssignmentId: String?) async throws -> [WeekAssignment] {
         let today = Self.localDateString()
         var query = client.from("week_assignments")
@@ -652,6 +688,48 @@ final class SupabaseService {
         try await client.from("workout_logs").delete().eq("id", value: logId).execute()
     }
 
+    func createPunishmentLog(groupId: String, punishmentId: String, userId: String, loggedAt: String, logType: LogType, cardioActivity: CardioActivity?, cardioAmount: Double?, exerciseId: String?, strengthReps: Int?, note: String?) async throws -> PunishmentLog {
+        var insert = PunishmentLogInsert(
+            group_id: groupId,
+            punishment_id: punishmentId,
+            user_id: userId,
+            logged_at: loggedAt,
+            log_type: logType.rawValue,
+            cardio_activity: nil,
+            cardio_amount: nil,
+            exercise_id: nil,
+            strength_reps: nil,
+            note: nil
+        )
+        if logType == .cardio {
+            insert.cardio_activity = cardioActivity?.rawValue
+            insert.cardio_amount = cardioAmount
+        } else {
+            insert.exercise_id = exerciseId
+            insert.strength_reps = strengthReps
+        }
+        insert.note = note
+        let dto: PunishmentLogDTO = try await client.from("punishment_logs")
+            .insert(insert)
+            .select()
+            .single()
+            .execute()
+            .value
+        return PunishmentLog(
+            id: dto.id,
+            groupId: dto.group_id,
+            punishmentId: dto.punishment_id,
+            userId: dto.user_id,
+            loggedAt: String(dto.logged_at.prefix(10)),
+            logType: LogType(rawValue: dto.log_type) ?? .cardio,
+            cardioActivity: dto.cardio_activity.flatMap { CardioActivity(rawValue: $0) },
+            cardioAmount: dto.cardio_amount,
+            exerciseId: dto.exercise_id,
+            strengthReps: dto.strength_reps,
+            note: dto.note
+        )
+    }
+
     // MARK: - Leaderboard & progress
 
     func getLeaderboard(groupId: String) async throws -> [UserProgress] {
@@ -747,7 +825,7 @@ final class SupabaseService {
 
     func getActivityFeed(groupId: String, limit: Int = 5) async throws -> [ActivityFeedItem] {
         let today = Self.localDateString()
-        var regularLogs: [(id: String, user_id: String, log_type: String, cardio_activity: String?, cardio_amount: Double?, exercise_id: String?, strength_reps: Int?, created_at: String, is_punishment: Bool)] = []
+        var regularLogs: [(id: String, user_id: String, log_type: String, cardio_activity: String?, cardio_amount: Double?, exercise_id: String?, strength_reps: Int?, created_at: String, is_punishment: Bool, cardio_metric: CardioMetric?)] = []
         let assignments: [WeekAssignmentDTO] = try await client.from("week_assignments")
             .select()
             .eq("group_id", value: groupId)
@@ -777,7 +855,7 @@ final class SupabaseService {
                     .execute()
                     .value
                 for r in rows {
-                    regularLogs.append((r.id, r.user_id, r.log_type, r.cardio_activity, r.cardio_amount, r.exercise_id, r.strength_reps, r.created_at, false))
+                    regularLogs.append((r.id, r.user_id, r.log_type, r.cardio_activity, r.cardio_amount, r.exercise_id, r.strength_reps, r.created_at, false, CardioMetric(rawValue: c.cardio_metric) ?? .miles))
                 }
             }
         }
@@ -788,7 +866,7 @@ final class SupabaseService {
             .gte("end_date", value: today)
             .execute()
             .value
-        var punishmentLogs: [(id: String, user_id: String, log_type: String, cardio_activity: String?, cardio_amount: Double?, exercise_id: String?, strength_reps: Int?, created_at: String, is_punishment: Bool)] = []
+        var punishmentLogs: [(id: String, user_id: String, log_type: String, cardio_activity: String?, cardio_amount: Double?, exercise_id: String?, strength_reps: Int?, created_at: String, is_punishment: Bool, cardio_metric: CardioMetric?)] = []
         if !punishmentRows.isEmpty {
             struct Plog: Decodable {
                 let id: String
@@ -808,12 +886,13 @@ final class SupabaseService {
                 .limit(limit)
                 .execute()
                 .value
+            let punishmentMetric = punishmentRows.first?.cardio_metric.flatMap { CardioMetric(rawValue: $0) } ?? .miles
             for p in plogs {
-                punishmentLogs.append((p.id, p.user_id, p.log_type, p.cardio_activity, p.cardio_amount, p.exercise_id, p.strength_reps, p.created_at, true))
+                punishmentLogs.append((p.id, p.user_id, p.log_type, p.cardio_activity, p.cardio_amount, p.exercise_id, p.strength_reps, p.created_at, true, punishmentMetric))
             }
         }
-        var all = regularLogs.map { r in (r.0, r.1, r.2, r.3, r.4, r.5, r.6, r.7, r.8) }
-        all.append(contentsOf: punishmentLogs.map { r in (r.0, r.1, r.2, r.3, r.4, r.5, r.6, r.7, r.8) })
+        var all = regularLogs.map { r in (r.0, r.1, r.2, r.3, r.4, r.5, r.6, r.7, r.8, r.9) }
+        all.append(contentsOf: punishmentLogs.map { r in (r.0, r.1, r.2, r.3, r.4, r.5, r.6, r.7, r.8, r.9) })
         all.sort { $0.7 > $1.7 }
         let limited = Array(all.prefix(limit))
         var feed: [ActivityFeedItem] = []
@@ -836,6 +915,7 @@ final class SupabaseService {
                 logType: LogType(rawValue: item.2) ?? .cardio,
                 cardioActivity: item.3.flatMap { CardioActivity(rawValue: $0) },
                 cardioAmount: item.4,
+                cardioMetric: item.9,
                 exerciseName: exerciseName,
                 strengthReps: item.6,
                 createdAt: item.7

@@ -8,7 +8,7 @@
 import Foundation
 
 // MARK: - Enums
-enum CardioActivity: String, CaseIterable {
+enum CardioActivity: String, CaseIterable, Codable {
     case run, walk, bike, other
     var displayName: String {
         switch self {
@@ -20,37 +20,37 @@ enum CardioActivity: String, CaseIterable {
     }
 }
 
-enum CardioMetric: String, CaseIterable {
+enum CardioMetric: String, CaseIterable, Codable {
     case miles, minutes
     var displayName: String { rawValue.capitalized }
 }
 
-enum LogType: String {
+enum LogType: String, Codable {
     case cardio, strength
 }
 
-enum UserRole: String {
+enum UserRole: String, Codable {
     case admin, member
 }
 
-enum MemberType: String, CaseIterable {
+enum MemberType: String, CaseIterable, Codable {
     case participant
     case spectator
 }
 
 // MARK: - Core Models
-struct Profile: Identifiable {
+struct Profile: Identifiable, Codable {
     let id: String
     var displayName: String
 }
 
-struct Group: Identifiable {
+struct Group: Identifiable, Codable {
     let id: String
     var name: String
     var inviteCode: String
 }
 
-struct GroupMembership: Identifiable {
+struct GroupMembership: Identifiable, Codable {
     let id: String
     let groupId: String
     let userId: String
@@ -58,7 +58,7 @@ struct GroupMembership: Identifiable {
     var memberType: MemberType
 }
 
-struct WeekAssignment: Identifiable {
+struct WeekAssignment: Identifiable, Codable {
     let id: String
     let groupId: String
     var startDate: String  // YYYY-MM-DD
@@ -66,7 +66,7 @@ struct WeekAssignment: Identifiable {
     var hostUserId: String
 }
 
-struct StrengthExercise: Identifiable {
+struct StrengthExercise: Identifiable, Codable {
     let id: String
     let weekChallengeId: String
     var name: String
@@ -74,7 +74,7 @@ struct StrengthExercise: Identifiable {
     var sortOrder: Int
 }
 
-struct WeekChallenge: Identifiable {
+struct WeekChallenge: Identifiable, Codable {
     let id: String
     let groupId: String
     let weekAssignmentId: String
@@ -82,8 +82,7 @@ struct WeekChallenge: Identifiable {
     var cardioTarget: Double
 }
 
-/// Dummy punishment for Settings (matches web: date range, assigned users, optional cardio/strength).
-struct Punishment: Identifiable {
+struct Punishment: Identifiable, Codable {
     let id: String
     let groupId: String
     var startDate: String
@@ -95,8 +94,7 @@ struct Punishment: Identifiable {
     var exerciseTargetReps: Int?
 }
 
-/// Punishment exercise (from punishment_exercises).
-struct PunishmentExercise: Identifiable {
+struct PunishmentExercise: Identifiable, Codable {
     let id: String
     let punishmentId: String
     var name: String
@@ -104,8 +102,7 @@ struct PunishmentExercise: Identifiable {
     var sortOrder: Int
 }
 
-/// Log entry for a punishment (from punishment_logs).
-struct PunishmentLog: Identifiable {
+struct PunishmentLog: Identifiable, Codable {
     let id: String
     let groupId: String
     let punishmentId: String
@@ -119,15 +116,13 @@ struct PunishmentLog: Identifiable {
     var note: String?
 }
 
-/// Active punishment with exercises and assigned users (for dashboard).
-struct ActivePunishment {
+struct ActivePunishment: Codable {
     let punishment: Punishment
     let exercises: [PunishmentExercise]
     let assignedUserIds: [String]
 }
 
-/// Progress for one user on a punishment (like UserProgress).
-struct PunishmentProgress: Identifiable {
+struct PunishmentProgress: Identifiable, Codable {
     var id: String { userId }
     let userId: String
     var displayName: String
@@ -138,7 +133,7 @@ struct PunishmentProgress: Identifiable {
     var exerciseTotals: [String: Int]  // exerciseId -> total reps
 }
 
-struct WorkoutLog: Identifiable {
+struct WorkoutLog: Identifiable, Codable {
     let id: String
     let groupId: String
     let weekChallengeId: String
@@ -170,7 +165,7 @@ struct WorkoutLog: Identifiable {
 }
 
 // MARK: - UI Models
-struct UserProgress: Identifiable {
+struct UserProgress: Identifiable, Codable {
     var id: String { userId }
     let userId: String
     var displayName: String
@@ -181,19 +176,20 @@ struct UserProgress: Identifiable {
     var exerciseTotals: [String: Int]  // exerciseId -> total reps
 }
 
-struct ActivityFeedItem: Identifiable {
+struct ActivityFeedItem: Identifiable, Codable {
     let id: String
     let userId: String
     var displayName: String
     var logType: LogType
     var cardioActivity: CardioActivity?
     var cardioAmount: Double?
+    var cardioMetric: CardioMetric?
     var exerciseName: String?
     var strengthReps: Int?
     var createdAt: String
 }
 
-struct ActiveWeek {
+struct ActiveWeek: Codable {
     var weekAssignment: WeekAssignment
     var challenge: WeekChallenge?
     var exercises: [StrengthExercise]

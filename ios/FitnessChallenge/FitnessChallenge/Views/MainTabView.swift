@@ -56,5 +56,12 @@ struct MainTabView: View {
             .tag(2)
         }
         .tint(Theme.brown)
+        .task(id: "poll") {
+            while !Task.isCancelled, appState.hasGroup {
+                try? await Task.sleep(for: .seconds(15))
+                guard !Task.isCancelled else { break }
+                await appState.refresh()
+            }
+        }
     }
 }

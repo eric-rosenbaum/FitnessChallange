@@ -10,7 +10,7 @@
 import SwiftUI
 
 struct ProgressOverTimeChartView: View {
-    let chartPoints: [DummyData.ChartPoint]
+    let chartPoints: [ProgressCalculations.ChartPoint]
     let progressList: [UserProgress] // order determines color; displayName for legend
     let weekStartDate: String
     let weekEndDate: String
@@ -105,7 +105,7 @@ struct ProgressOverTimeChartView: View {
 // MARK: - Chart content (layout and paths live here so ViewBuilder doesn't see declarations)
 private struct ChartContentView: View {
     let width: CGFloat
-    let chartPoints: [DummyData.ChartPoint]
+    let chartPoints: [ProgressCalculations.ChartPoint]
     let progressList: [UserProgress]
     let weekStartDate: String
     let weekEndDate: String

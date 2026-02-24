@@ -41,6 +41,7 @@ struct SettingsView: View {
     @State private var editUpcomingHostId: String = ""
     @State private var editUpcomingStartDate = Date()
     @State private var editUpcomingEndDate = Date()
+    @State private var editUpcomingChallengeAssignment: WeekAssignment?
 
     @State private var showCreateWeekForm = false
     @State private var newWeekStartDate = Date()
@@ -60,6 +61,9 @@ struct SettingsView: View {
     }()
 
     private var isAdmin: Bool { appState.isAdmin }
+    private var isCurrentWeekHost: Bool {
+        appState.activeWeek.weekAssignment.hostUserId.lowercased() == appState.currentUserId.lowercased()
+    }
 
     var body: some View {
         List {
@@ -72,6 +76,9 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("Group")
+        .sheet(item: $editUpcomingChallengeAssignment) { assignment in
+            CreateChallengeSheet(appState: appState, assignment: assignment)
+        }
         .alert("Remove member?", isPresented: $showRemoveMemberAlert) {
             Button("Cancel", role: .cancel) { memberToRemove = nil }
             Button(memberToRemove == appState.currentUserId ? "Leave" : "Remove", role: .destructive) {
@@ -255,7 +262,7 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                if isAdmin {
+                if isAdmin || isCurrentWeekHost {
                     Text("Create a challenge so members can log cardio and strength.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -311,7 +318,7 @@ struct SettingsView: View {
                                 .foregroundStyle(Theme.brown)
                         }
                     }
-                } else {
+                } else if !isCurrentWeekHost {
                     Text("Waiting for host to create challenge.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -354,8 +361,9 @@ struct SettingsView: View {
                             }
                         }
                     }
-                    if isAdmin {
+                    if isAdmin || isCurrentWeekHost {
                         HStack(spacing: 16) {
+                            if isAdmin {
                             Button("Edit dates") {
                                 currentWeekStartDate = Self.dateFormatter.date(from: appState.activeWeek.weekAssignment.startDate) ?? Date()
                                 currentWeekEndDate = Self.dateFormatter.date(from: appState.activeWeek.weekAssignment.endDate) ?? Date()
@@ -369,6 +377,7 @@ struct SettingsView: View {
                             }
                             .font(.subheadline)
                             .foregroundStyle(Theme.brown)
+                            }
                             Button("Edit exercises") {
                                 if let ch = appState.challenge {
                                     challengeCardioTarget = String(Int(ch.cardioTarget))
@@ -410,7 +419,7 @@ struct SettingsView: View {
                         .foregroundStyle(Theme.brown)
                     }
                 }
-                if editingChallenge && isAdmin {
+                if editingChallenge && (isAdmin || isCurrentWeekHost) {
                     Picker("Cardio metric", selection: $challengeCardioMetric) {
                         ForEach(CardioMetric.allCases, id: \.self) { Text($0.displayName).tag($0) }
                     }
@@ -488,15 +497,24 @@ struct SettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
-                        if isAdmin {
-                            Button("Edit") {
-                                editUpcomingHostId = a.hostUserId
-                                editUpcomingStartDate = Self.dateFormatter.date(from: a.startDate) ?? Date()
-                                editUpcomingEndDate = Self.dateFormatter.date(from: a.endDate) ?? Date()
-                                editingUpcomingId = a.id
+                        HStack(spacing: 8) {
+                            if a.hostUserId.lowercased() == appState.currentUserId.lowercased() {
+                                Button("Set Exercises") {
+                                    editUpcomingChallengeAssignment = a
+                                }
+                                .font(.caption)
+                                .foregroundStyle(Theme.brown)
                             }
-                            .font(.caption)
-                            .foregroundStyle(Theme.brown)
+                            if isAdmin {
+                                Button("Edit") {
+                                    editUpcomingHostId = a.hostUserId
+                                    editUpcomingStartDate = Self.dateFormatter.date(from: a.startDate) ?? Date()
+                                    editUpcomingEndDate = Self.dateFormatter.date(from: a.endDate) ?? Date()
+                                    editingUpcomingId = a.id
+                                }
+                                .font(.caption)
+                                .foregroundStyle(Theme.brown)
+                            }
                         }
                     }
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {

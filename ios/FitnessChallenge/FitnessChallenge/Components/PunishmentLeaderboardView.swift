@@ -44,7 +44,7 @@ struct PunishmentLeaderboardView: View {
                                     RoundedRectangle(cornerRadius: 4)
                                         .fill(Color.gray.opacity(0.2))
                                     RoundedRectangle(cornerRadius: 4)
-                                        .fill(Theme.redPunishment.opacity(0.85))
+                                        .fill(Theme.brown.opacity(0.85))
                                         .frame(width: geo.size.width * min(CGFloat(progress.totalProgress), 1))
                                 }
                             }
@@ -62,22 +62,23 @@ struct PunishmentLeaderboardView: View {
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
-                    .background(isYou ? Color.red.opacity(0.08) : Color.clear)
+                    .background(isYou ? Theme.brown.opacity(0.08) : Color.clear)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
             }
         }
         .padding()
         .background(
-            LinearGradient(colors: [Theme.redPunishment.opacity(0.15), Theme.redPunishment.opacity(0.08)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            LinearGradient(colors: [Theme.redPunishmentCard.opacity(0.2), Theme.redPunishmentCard.opacity(0.1)], startPoint: .topLeading, endPoint: .bottomTrailing)
         )
         .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.red.opacity(0.25), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.redPunishmentCard.opacity(0.4), lineWidth: 1))
     }
 
     private func rank(for progress: PunishmentProgress) -> Int {
         guard let i = progressList.firstIndex(where: { $0.userId.lowercased() == progress.userId.lowercased() }) else { return 0 }
-        return i + 1
+        let higherCount = progressList.prefix(i).filter { $0.totalProgress > progress.totalProgress }.count
+        return higherCount + 1
     }
 
     private func breakdown(for userId: String) -> String {

@@ -45,7 +45,7 @@ struct PunishmentProgressCardView: View {
                         Text("Cardio")
                             .font(.caption)
                             .fontWeight(.semibold)
-                        DonutView(progress: progress.cardioProgress, color: Theme.redPunishment, size: 90)
+                        DonutView(progress: progress.cardioProgress, color: Theme.greenProgress, size: 90)
                             .padding(.top, 16)
                         Text(String(format: "%.1f / %.1f %@", progress.cardioTotal, punishment.cardioTarget ?? 0, metricSuffix))
                             .font(.caption)
@@ -65,7 +65,7 @@ struct PunishmentProgressCardView: View {
                         Text("Strength")
                             .font(.caption)
                             .fontWeight(.semibold)
-                        DonutView(progress: progress.strengthOverallProgress, color: Theme.redPunishment, size: 90)
+                        DonutView(progress: progress.strengthOverallProgress, color: Theme.strengthBlue, size: 90)
                             .padding(.top, 16)
                         Text("\(Int(progress.strengthOverallProgress * 100))% complete")
                             .font(.caption)
@@ -82,8 +82,8 @@ struct PunishmentProgressCardView: View {
             }
         }
         .padding()
-        .background(Theme.redPunishment.opacity(0.3))
+        .background(Theme.redPunishmentCard.opacity(0.4))
         .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.red.opacity(0.3), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.redPunishmentCard.opacity(0.5), lineWidth: 1))
     }
 }

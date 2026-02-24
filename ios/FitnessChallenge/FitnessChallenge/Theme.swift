@@ -13,6 +13,8 @@ enum Theme {
     /// Warm off-white like web glass-card (#fefefe)
     static let cardBackground = Color(red: 0.996, green: 0.996, blue: 0.996)
     static let redPunishment = Color(red: 1, green: 0.9, blue: 0.9)
+    /// Slightly darker red for punishment card backgrounds
+    static let redPunishmentCard = Color(red: 0.96, green: 0.78, blue: 0.78)
     static let greenProgress = Color(red: 0.025, green: 0.373, blue: 0.275) // #065f46
     static let strengthBlue = Color(red: 0.008, green: 0.518, blue: 0.784)   // ~blue-400
 

@@ -86,7 +86,8 @@ struct LeaderboardView: View {
 
     private func rank(for progress: UserProgress) -> Int {
         guard let i = progressList.firstIndex(where: { $0.userId == progress.userId }) else { return 0 }
-        return i + 1
+        let higherCount = progressList.prefix(i).filter { $0.totalProgress > progress.totalProgress }.count
+        return higherCount + 1
     }
 
     private func breakdown(for progress: UserProgress) -> String {

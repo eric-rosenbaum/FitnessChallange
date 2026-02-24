@@ -12,7 +12,7 @@ struct ContentView: View {
 
     var body: some View {
         SwiftUI.Group {
-            if appState.authLoading && appState.useSupabase {
+            if appState.authLoading && appState.useSupabase && !appState.hasGroup {
                 ProgressView("Loading…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if !appState.isLoggedIn {

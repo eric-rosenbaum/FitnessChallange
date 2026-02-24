@@ -72,7 +72,8 @@ struct ActivityFeedView: View {
         case .cardio:
             let activity = item.cardioActivity?.displayName ?? "Cardio"
             let amount = item.cardioAmount.map { String(format: "%.1f", $0) } ?? "?"
-            return "\(activity): \(amount)"
+            let unit = (item.cardioMetric ?? .miles) == .minutes ? "min" : "mi"
+            return "\(activity): \(amount) \(unit)"
         case .strength:
             let name = item.exerciseName ?? "Exercise"
             let reps = item.strengthReps.map { "\($0)" } ?? "?"
@@ -127,7 +128,8 @@ struct AllActivityFeedView: View {
         case .cardio:
             let activity = item.cardioActivity?.displayName ?? "Cardio"
             let amount = item.cardioAmount.map { String(format: "%.1f", $0) } ?? "?"
-            return "\(activity): \(amount)"
+            let unit = (item.cardioMetric ?? .miles) == .minutes ? "min" : "mi"
+            return "\(activity): \(amount) \(unit)"
         case .strength:
             let name = item.exerciseName ?? "Exercise"
             let reps = item.strengthReps.map { "\($0)" } ?? "?"
