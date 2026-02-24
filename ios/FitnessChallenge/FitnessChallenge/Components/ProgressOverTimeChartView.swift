@@ -68,15 +68,16 @@ struct ProgressOverTimeChartView: View {
     }
 
     private var legendView: some View {
-        HStack(spacing: 12) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 80), alignment: .leading)], alignment: .leading, spacing: 6) {
             ForEach(Array(progressList.enumerated()), id: \.element.userId) { index, progress in
-                HStack(spacing: 4) {
+                HStack(spacing: 6) {
                     Circle()
                         .fill(Self.colors[index % Self.colors.count])
                         .frame(width: 10, height: 10)
                     Text(progress.displayName)
                         .font(.caption)
                         .foregroundStyle(.primary)
+                        .lineLimit(1)
                 }
             }
         }

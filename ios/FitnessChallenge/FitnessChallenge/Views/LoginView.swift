@@ -9,6 +9,7 @@ struct LoginView: View {
     @Bindable var appState: AppState
     @State private var email = ""
     @State private var password = ""
+    @State private var displayName = ""
     @State private var isSignUp = false
     @State private var isLoading = false
     @State private var message = ""
@@ -24,6 +25,12 @@ struct LoginView: View {
                 Text("Sign in with your account")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                if isSignUp {
+                    TextField("Display name", text: $displayName)
+                        .textFieldStyle(.roundedBorder)
+                        .textInputAutocapitalization(.words)
+                        .padding(.horizontal, 32)
+                }
                 TextField("Email", text: $email)
                     .textFieldStyle(.roundedBorder)
                     .textInputAutocapitalization(.never)
@@ -54,10 +61,11 @@ struct LoginView: View {
                     .foregroundStyle(.white)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                 })
-                .disabled(isLoading || email.isEmpty || password.isEmpty)
+                .disabled(isLoading || email.isEmpty || password.isEmpty || (isSignUp && displayName.trimmingCharacters(in: .whitespaces).isEmpty))
                 .padding(.horizontal, 32)
                 Button(isSignUp ? "Already have an account? Sign In" : "Create an account", action: {
                     isSignUp.toggle()
+                    if !isSignUp { displayName = "" }
                     message = ""
                 })
                 .font(.caption)
@@ -88,7 +96,7 @@ struct LoginView: View {
         Task {
             do {
                 if isSignUp {
-                    try await appState.signUp(email: email, password: password)
+                    try await appState.signUp(email: email, password: password, displayName: displayName.trimmingCharacters(in: .whitespaces))
                 } else {
                     try await appState.signIn(email: email, password: password)
                 }

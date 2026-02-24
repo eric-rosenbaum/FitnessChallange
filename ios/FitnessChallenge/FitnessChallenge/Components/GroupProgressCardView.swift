@@ -32,7 +32,7 @@ struct GroupProgressCardView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            HStack(spacing: 24) {
+            HStack(alignment: .top, spacing: 24) {
                 // Cardio
                 VStack(spacing: 4) {
                     Text("Cardio")

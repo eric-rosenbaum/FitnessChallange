@@ -239,8 +239,12 @@ final class SupabaseService {
         _ = try await client.auth.signIn(email: email, password: password)
     }
 
-    func signUp(email: String, password: String) async throws {
-        _ = try await client.auth.signUp(email: email, password: password)
+    func signUp(email: String, password: String, displayName: String? = nil) async throws {
+        if let name = displayName, !name.isEmpty {
+            _ = try await client.auth.signUp(email: email, password: password, data: ["display_name": AnyJSON.string(name)])
+        } else {
+            _ = try await client.auth.signUp(email: email, password: password)
+        }
     }
 
     func signOut() async throws {

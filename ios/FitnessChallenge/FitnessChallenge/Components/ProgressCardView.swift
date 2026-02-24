@@ -27,7 +27,7 @@ struct ProgressCardView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            HStack(spacing: 24) {
+            HStack(alignment: .top, spacing: 24) {
                 // Cardio column: donut + total + breakdown (like Group Progress)
                 VStack(spacing: 4) {
                     Text("Cardio")

@@ -338,10 +338,9 @@ final class AppState {
                     print("[\(dashboardLog)] memberships=\(memberships.count), calling refresh()")
                     await refresh()
                 } else {
-                    // New user or user who left group: only skip onboarding if they already have a display name set
-                    let name = profile?.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-                    hasOnboarded = (name != nil && !name!.isEmpty && name != "User")
-                    print("[\(dashboardLog)] No group membership, hasOnboarded=\(hasOnboarded) displayName=\(name ?? "nil")")
+                    // Session restore: never show onboarding (display name only collected at sign up)
+                    hasOnboarded = true
+                    print("[\(dashboardLog)] No group membership, skipping onboarding")
                 }
             } else {
                 print("[\(dashboardLog)] currentUserId nil after session")
@@ -370,21 +369,21 @@ final class AppState {
                 hasOnboarded = true
                 await refresh()
             } else {
-                let profile = try? await svc.getProfile(userId: uid)
-                let name = profile?.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-                hasOnboarded = (name != nil && !name!.isEmpty && name != "User")
+                // Sign-in: never show onboarding (display name only collected at sign up)
+                hasOnboarded = true
             }
         }
     }
 
     /// Sign up with email/password (Supabase only).
-    func signUp(email: String, password: String) async throws {
+    func signUp(email: String, password: String, displayName: String? = nil) async throws {
         guard useSupabase, let svc = supabaseService else { return }
-        try await svc.signUp(email: email, password: password)
+        try await svc.signUp(email: email, password: password, displayName: displayName)
         if let uid = await svc.currentUserId {
             currentUserIdFromSession = uid
             isLoggedIn = true
-            hasOnboarded = false
+            // Display name was collected in sign-up form; skip onboarding
+            hasOnboarded = true
         }
     }
 
