@@ -42,6 +42,17 @@ struct SettingsView: View {
     @State private var editUpcomingStartDate = Date()
     @State private var editUpcomingEndDate = Date()
 
+    @State private var showCreateWeekForm = false
+    @State private var newWeekStartDate = Date()
+    @State private var newWeekEndDate = Date()
+    @State private var newWeekHostId: String = ""
+    @State private var showCreateChallengeForm = false
+    @State private var newChallengeCardioMetric: CardioMetric = .miles
+    @State private var newChallengeCardioTarget: String = ""
+    @State private var newChallengeExercises: [(name: String, reps: Int)] = []
+    @State private var newChallengeExerciseName: String = ""
+    @State private var newChallengeExerciseReps: String = ""
+
     private static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd"
@@ -127,42 +138,42 @@ struct SettingsView: View {
     private var membersSection: some View {
         Section("Members") {
             ForEach(appState.memberships) { m in
-                if let pro = DummyData.profile(for: m.userId) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(pro.displayName)
-                            if m.userId == appState.currentUserId {
-                                Text("(You)")
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(appState.displayName(for: m.userId))
+                        if m.userId.lowercased() == appState.currentUserId.lowercased() {
+                            Text("(You)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Spacer()
+                    HStack(spacing: 8) {
+                        Text(m.memberType.rawValue.capitalized)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(m.role.rawValue.capitalized)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        if isAdmin && m.userId.lowercased() != appState.currentUserId.lowercased() {
+                            Button {
+                                selectedMemberType = m.memberType
+                                memberTypeEditTarget = MemberTypeEditTarget(id: m.userId)
+                            } label: {
+                                Image(systemName: "person.2.fill")
                                     .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Theme.brown)
                             }
                         }
-                        Spacer()
-                        HStack(spacing: 8) {
-                            Text(m.memberType.rawValue.capitalized)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text(m.role.rawValue.capitalized)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            if isAdmin && m.userId != appState.currentUserId {
-                                Button {
-                                    selectedMemberType = m.memberType
-                                    memberTypeEditTarget = MemberTypeEditTarget(id: m.userId)
-                                } label: {
-                                    Image(systemName: "person.2.fill")
-                                        .font(.caption)
-                                        .foregroundStyle(Theme.brown)
-                                }
-                            }
-                            if appState.memberships.count > 1 {
-                                Button(m.userId == appState.currentUserId ? "Leave" : "Remove") {
-                                    memberToRemove = m.userId
-                                    showRemoveMemberAlert = true
-                                }
-                                .font(.caption)
-                                .foregroundStyle(.red)
-                            }
+                    }
+                }
+                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    if appState.memberships.count > 1 {
+                        Button(role: .destructive) {
+                            memberToRemove = m.userId
+                            showRemoveMemberAlert = true
+                        } label: {
+                            Label(m.userId.lowercased() == appState.currentUserId.lowercased() ? "Leave" : "Remove", systemImage: "trash")
                         }
                     }
                 }
@@ -183,12 +194,59 @@ struct SettingsView: View {
 
     private var currentWeekSection: some View {
         Section("Current Week Assignment") {
-            if !editingCurrentDates && !editingCurrentHost && !editingChallenge {
+            if !appState.hasCurrentWeekAssignment {
+                if isAdmin {
+                    Text("No current week. Create one so the group can log workouts.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if showCreateWeekForm {
+                        DatePicker("Start", selection: $newWeekStartDate, displayedComponents: .date)
+                        DatePicker("End", selection: $newWeekEndDate, displayedComponents: .date)
+                        Picker("Host", selection: $newWeekHostId) {
+                            ForEach(appState.memberships) { m in
+                                Text(appState.displayName(for: m.userId)).tag(m.userId)
+                            }
+                        }
+                        HStack {
+                            Button("Cancel") { showCreateWeekForm = false }
+                            Spacer()
+                            Button("Create week") {
+                                guard !newWeekHostId.isEmpty else { return }
+                                appState.addUpcomingAssignment(hostUserId: newWeekHostId, startDate: Self.dateFormatter.string(from: newWeekStartDate), endDate: Self.dateFormatter.string(from: newWeekEndDate))
+                                showCreateWeekForm = false
+                            }
+                            .foregroundStyle(Theme.brown)
+                        }
+                    } else {
+                        Button {
+                            newWeekHostId = appState.memberships.first?.userId ?? ""
+                            let cal = Calendar.current
+                            newWeekStartDate = Date()
+                            newWeekEndDate = cal.date(byAdding: .day, value: 6, to: Date()) ?? Date()
+                            showCreateWeekForm = true
+                        } label: {
+                            Label("Create current week", systemImage: "plus.circle.fill")
+                                .foregroundStyle(Theme.brown)
+                        }
+                    }
+                } else {
+                    Text("No current week. Ask an admin to create one.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } else if appState.challenge == nil {
                 HStack {
                     Text("Host")
                     Spacer()
                     Text(appState.activeWeek.hostName)
                         .foregroundStyle(.secondary)
+                }
+                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    if isAdmin {
+                        Button(role: .destructive) {
+                            appState.deleteCurrentWeekAssignment()
+                        } label: { Label("Delete", systemImage: "trash") }
+                    }
                 }
                 HStack {
                     Text("Dates")
@@ -197,123 +255,205 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                if let ch = appState.activeWeek.challenge {
+                if isAdmin {
+                    Text("Create a challenge so members can log cardio and strength.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if showCreateChallengeForm {
+                        Picker("Cardio metric", selection: $newChallengeCardioMetric) {
+                            ForEach(CardioMetric.allCases, id: \.self) { Text($0.displayName).tag($0) }
+                        }
+                        TextField("Cardio target", text: $newChallengeCardioTarget)
+                            .keyboardType(.decimalPad)
+                        Text("Exercises")
+                            .font(.subheadline.weight(.medium))
+                        ForEach(Array(newChallengeExercises.enumerated()), id: \.offset) { item in
+                            HStack {
+                                Text(item.element.name)
+                                Spacer()
+                                Text("\(item.element.reps) reps")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        HStack {
+                            TextField("Name", text: $newChallengeExerciseName)
+                            TextField("Reps", text: $newChallengeExerciseReps)
+                                .keyboardType(.numberPad)
+                            Button("Add") {
+                                guard let reps = Int(newChallengeExerciseReps), !newChallengeExerciseName.isEmpty else { return }
+                                newChallengeExercises.append((name: newChallengeExerciseName, reps: reps))
+                                newChallengeExerciseName = ""
+                                newChallengeExerciseReps = ""
+                            }
+                            .foregroundStyle(Theme.brown)
+                        }
+                        HStack {
+                            Button("Cancel") {
+                                showCreateChallengeForm = false
+                            }
+                            Spacer()
+                            Button("Create challenge") {
+                                guard let target = Double(newChallengeCardioTarget), !newChallengeExercises.isEmpty else { return }
+                                let exercises = newChallengeExercises.map { (name: $0.name, targetReps: $0.reps) }
+                                appState.createChallenge(cardioMetric: newChallengeCardioMetric, cardioTarget: target, exercises: exercises)
+                                showCreateChallengeForm = false
+                                newChallengeExercises = []
+                                newChallengeCardioTarget = ""
+                            }
+                            .disabled(newChallengeCardioTarget.isEmpty || newChallengeExercises.isEmpty)
+                            .foregroundStyle(Theme.brown)
+                        }
+                    } else {
+                        Button {
+                            showCreateChallengeForm = true
+                        } label: {
+                            Label("Create challenge", systemImage: "plus.circle.fill")
+                                .foregroundStyle(Theme.brown)
+                        }
+                    }
+                } else {
+                    Text("Waiting for host to create challenge.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                if !editingCurrentDates && !editingCurrentHost && !editingChallenge {
                     HStack {
-                        Text("Cardio")
+                        Text("Host")
                         Spacer()
-                        Text("\(Int(ch.cardioTarget)) \(ch.cardioMetric.displayName)")
+                        Text(appState.activeWeek.hostName)
                             .foregroundStyle(.secondary)
                     }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        if isAdmin {
+                            Button(role: .destructive) {
+                                appState.deleteCurrentWeekAssignment()
+                            } label: { Label("Delete", systemImage: "trash") }
+                        }
+                    }
+                    HStack {
+                        Text("Dates")
+                        Spacer()
+                        Text("\(appState.activeWeek.weekAssignment.startDate) – \(appState.activeWeek.weekAssignment.endDate)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    if let ch = appState.activeWeek.challenge {
+                        HStack {
+                            Text("Cardio")
+                            Spacer()
+                            Text("\(Int(ch.cardioTarget)) \(ch.cardioMetric.displayName)")
+                                .foregroundStyle(.secondary)
+                        }
+                        ForEach(appState.exercises) { ex in
+                            HStack {
+                                Text(ex.name)
+                                Spacer()
+                                Text("\(ex.targetReps) reps")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    if isAdmin {
+                        HStack(spacing: 16) {
+                            Button("Edit dates") {
+                                currentWeekStartDate = Self.dateFormatter.date(from: appState.activeWeek.weekAssignment.startDate) ?? Date()
+                                currentWeekEndDate = Self.dateFormatter.date(from: appState.activeWeek.weekAssignment.endDate) ?? Date()
+                                editingCurrentDates = true
+                            }
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.brown)
+                            Button("Change host") {
+                                currentWeekHostId = appState.activeWeek.weekAssignment.hostUserId
+                                editingCurrentHost = true
+                            }
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.brown)
+                            Button("Edit exercises") {
+                                if let ch = appState.challenge {
+                                    challengeCardioTarget = String(Int(ch.cardioTarget))
+                                    challengeCardioMetric = ch.cardioMetric
+                                    editingChallenge = true
+                                }
+                            }
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.brown)
+                        }
+                    }
+                }
+                if editingCurrentDates && isAdmin {
+                    DatePicker("Start", selection: $currentWeekStartDate, displayedComponents: .date)
+                    DatePicker("End", selection: $currentWeekEndDate, displayedComponents: .date)
+                    HStack {
+                        Button("Cancel") { editingCurrentDates = false }
+                        Spacer()
+                        Button("Save") {
+                            appState.updateCurrentWeekDates(start: Self.dateFormatter.string(from: currentWeekStartDate), end: Self.dateFormatter.string(from: currentWeekEndDate))
+                            editingCurrentDates = false
+                        }
+                        .foregroundStyle(Theme.brown)
+                    }
+                }
+                if editingCurrentHost && isAdmin {
+                    Picker("Host", selection: $currentWeekHostId) {
+                        ForEach(appState.memberships) { m in
+                            Text(appState.displayName(for: m.userId)).tag(m.userId)
+                        }
+                    }
+                    HStack {
+                        Button("Cancel") { editingCurrentHost = false }
+                        Spacer()
+                        Button("Save") {
+                            appState.updateCurrentWeekHost(userId: currentWeekHostId)
+                            editingCurrentHost = false
+                        }
+                        .foregroundStyle(Theme.brown)
+                    }
+                }
+                if editingChallenge && isAdmin {
+                    Picker("Cardio metric", selection: $challengeCardioMetric) {
+                        ForEach(CardioMetric.allCases, id: \.self) { Text($0.displayName).tag($0) }
+                    }
+                    TextField("Cardio target", text: $challengeCardioTarget)
+                        .keyboardType(.decimalPad)
+                    Text("Exercises")
+                        .font(.subheadline.weight(.medium))
                     ForEach(appState.exercises) { ex in
                         HStack {
                             Text(ex.name)
                             Spacer()
-                            Text("\(ex.targetReps) reps")
+                            Text("\(ex.targetReps)")
                                 .foregroundStyle(.secondary)
                         }
-                    }
-                }
-                if isAdmin {
-                    HStack(spacing: 16) {
-                        Button("Edit dates") {
-                            currentWeekStartDate = Self.dateFormatter.date(from: appState.activeWeek.weekAssignment.startDate) ?? Date()
-                            currentWeekEndDate = Self.dateFormatter.date(from: appState.activeWeek.weekAssignment.endDate) ?? Date()
-                            editingCurrentDates = true
-                        }
-                        .font(.subheadline)
-                        .foregroundStyle(Theme.brown)
-                        Button("Change host") {
-                            currentWeekHostId = appState.activeWeek.weekAssignment.hostUserId
-                            editingCurrentHost = true
-                        }
-                        .font(.subheadline)
-                        .foregroundStyle(Theme.brown)
-                        Button("Edit exercises") {
-                            if let ch = appState.challenge {
-                                challengeCardioTarget = String(Int(ch.cardioTarget))
-                                challengeCardioMetric = ch.cardioMetric
-                                editingChallenge = true
-                            }
-                        }
-                        .font(.subheadline)
-                        .foregroundStyle(Theme.brown)
-                    }
-                }
-            }
-            if editingCurrentDates && isAdmin {
-                DatePicker("Start", selection: $currentWeekStartDate, displayedComponents: .date)
-                DatePicker("End", selection: $currentWeekEndDate, displayedComponents: .date)
-                HStack {
-                    Button("Cancel") { editingCurrentDates = false }
-                    Spacer()
-                    Button("Save") {
-                        appState.updateCurrentWeekDates(start: Self.dateFormatter.string(from: currentWeekStartDate), end: Self.dateFormatter.string(from: currentWeekEndDate))
-                        editingCurrentDates = false
-                    }
-                    .foregroundStyle(Theme.brown)
-                }
-            }
-            if editingCurrentHost && isAdmin {
-                Picker("Host", selection: $currentWeekHostId) {
-                    ForEach(appState.memberships) { m in
-                        if let pro = DummyData.profile(for: m.userId) {
-                            Text(pro.displayName).tag(m.userId)
+                        .swipeActions(edge: .trailing) {
+                            Button(role: .destructive) {
+                                appState.removeExercise(id: ex.id)
+                            } label: { Label("Delete", systemImage: "trash") }
                         }
                     }
-                }
-                HStack {
-                    Button("Cancel") { editingCurrentHost = false }
-                    Spacer()
-                    Button("Save") {
-                        appState.updateCurrentWeekHost(userId: currentWeekHostId)
-                        editingCurrentHost = false
-                    }
-                    .foregroundStyle(Theme.brown)
-                }
-            }
-            if editingChallenge && isAdmin {
-                Picker("Cardio metric", selection: $challengeCardioMetric) {
-                    ForEach(CardioMetric.allCases, id: \.self) { Text($0.displayName).tag($0) }
-                }
-                TextField("Cardio target", text: $challengeCardioTarget)
-                    .keyboardType(.decimalPad)
-                Text("Exercises")
-                    .font(.subheadline.weight(.medium))
-                ForEach(appState.exercises) { ex in
                     HStack {
-                        Text(ex.name)
-                        Spacer()
-                        Text("\(ex.targetReps)")
-                            .foregroundStyle(.secondary)
-                    }
-                    .swipeActions(edge: .trailing) {
-                        Button(role: .destructive) {
-                            appState.removeExercise(id: ex.id)
-                        } label: { Label("Delete", systemImage: "trash") }
-                    }
-                }
-                HStack {
-                    TextField("Name", text: $newExerciseName)
-                    TextField("Reps", text: $newExerciseReps)
-                        .keyboardType(.numberPad)
-                    Button("Add") {
-                        guard let reps = Int(newExerciseReps), !newExerciseName.isEmpty else { return }
-                        appState.addExercise(name: newExerciseName, targetReps: reps)
-                        newExerciseName = ""
-                        newExerciseReps = ""
-                    }
-                    .foregroundStyle(Theme.brown)
-                }
-                HStack {
-                    Button("Cancel") { editingChallenge = false }
-                    Spacer()
-                    Button("Save") {
-                        if let t = Double(challengeCardioTarget) {
-                            appState.updateChallenge(cardioMetric: challengeCardioMetric, cardioTarget: t)
+                        TextField("Name", text: $newExerciseName)
+                        TextField("Reps", text: $newExerciseReps)
+                            .keyboardType(.numberPad)
+                        Button("Add") {
+                            guard let reps = Int(newExerciseReps), !newExerciseName.isEmpty else { return }
+                            appState.addExercise(name: newExerciseName, targetReps: reps)
+                            newExerciseName = ""
+                            newExerciseReps = ""
                         }
-                        editingChallenge = false
+                        .foregroundStyle(Theme.brown)
                     }
-                    .foregroundStyle(Theme.brown)
+                    HStack {
+                        Button("Cancel") { editingChallenge = false }
+                        Spacer()
+                        Button("Save") {
+                            if let t = Double(challengeCardioTarget) {
+                                appState.updateChallenge(cardioMetric: challengeCardioMetric, cardioTarget: t)
+                            }
+                            editingChallenge = false
+                        }
+                        .foregroundStyle(Theme.brown)
+                    }
                 }
             }
         }
@@ -327,9 +467,7 @@ struct SettingsView: View {
                     DatePicker("End", selection: $editUpcomingEndDate, displayedComponents: .date)
                     Picker("Host", selection: $editUpcomingHostId) {
                         ForEach(appState.memberships) { m in
-                            if let pro = DummyData.profile(for: m.userId) {
-                                Text(pro.displayName).tag(m.userId)
-                            }
+                            Text(appState.displayName(for: m.userId)).tag(m.userId)
                         }
                     }
                     HStack {
@@ -344,7 +482,7 @@ struct SettingsView: View {
                 } else {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(DummyData.profile(for: a.hostUserId)?.displayName ?? a.hostUserId)
+                            Text(appState.displayName(for: a.hostUserId))
                             Text("\(a.startDate) – \(a.endDate)")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -359,10 +497,13 @@ struct SettingsView: View {
                             }
                             .font(.caption)
                             .foregroundStyle(Theme.brown)
-                            Button("Delete", role: .destructive) {
+                        }
+                    }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        if isAdmin {
+                            Button(role: .destructive) {
                                 appState.removeUpcomingAssignment(id: a.id)
-                            }
-                            .font(.caption)
+                            } label: { Label("Delete", systemImage: "trash") }
                         }
                     }
                 }
@@ -373,9 +514,7 @@ struct SettingsView: View {
                     DatePicker("End", selection: $upcomingFormEndDate, displayedComponents: .date)
                     Picker("Host", selection: $upcomingFormHostId) {
                         ForEach(appState.memberships) { m in
-                            if let pro = DummyData.profile(for: m.userId) {
-                                Text(pro.displayName).tag(m.userId)
-                            }
+                            Text(appState.displayName(for: m.userId)).tag(m.userId)
                         }
                     }
                     HStack {
@@ -417,7 +556,7 @@ struct SettingsView: View {
                     Text("\(p.startDate) – \(p.endDate)")
                         .font(.subheadline.weight(.medium))
                     if !p.assignedUserIds.isEmpty {
-                        let names = p.assignedUserIds.compactMap { DummyData.profile(for: $0)?.displayName }
+                        let names = p.assignedUserIds.map { appState.displayName(for: $0) }
                         Text("Assigned: \(names.joined(separator: ", "))")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -506,12 +645,10 @@ struct SettingsView: View {
             Text("Assign to (participants)")
                 .font(.caption)
             ForEach(appState.memberships.filter { $0.memberType == .participant }) { m in
-                if let pro = DummyData.profile(for: m.userId) {
-                    Toggle(pro.displayName, isOn: Binding(
-                        get: { punishmentUserIds.contains(m.userId) },
-                        set: { if $0 { punishmentUserIds.insert(m.userId) } else { punishmentUserIds.remove(m.userId) } }
-                    ))
-                }
+                Toggle(appState.displayName(for: m.userId), isOn: Binding(
+                    get: { punishmentUserIds.contains(m.userId) },
+                    set: { if $0 { punishmentUserIds.insert(m.userId) } else { punishmentUserIds.remove(m.userId) } }
+                ))
             }
             Picker("Cardio (optional)", selection: $punishmentCardioMetric) {
                 Text("None").tag(nil as CardioMetric?)

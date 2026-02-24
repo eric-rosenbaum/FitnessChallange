@@ -76,16 +76,25 @@ struct CreateOrJoinGroupView: View {
                         .padding(.horizontal, 32)
                 }
                 HStack(spacing: 12) {
-                    Button("Back") { mode = .choose; errorMessage = "" }
-                        .foregroundStyle(Theme.brown)
-                    Button(action: createGroup) {
-                        if isLoading {
-                            ProgressView()
-                                .tint(.white)
-                        } else {
-                            Text("Create")
-                        }
+                    Button(action: { mode = .choose; errorMessage = "" }) {
+                        Text("Back")
                     }
+                    .foregroundStyle(Theme.brown)
+                    Button {
+                        createGroup()
+                    } label: {
+                        SwiftUI.Group {
+                            if isLoading {
+                                ProgressView()
+                                    .tint(.white)
+                            } else {
+                                Text("Create")
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
                     .background(Theme.brown)
@@ -111,16 +120,25 @@ struct CreateOrJoinGroupView: View {
                         .padding(.horizontal, 32)
                 }
                 HStack(spacing: 12) {
-                    Button("Back") { mode = .choose; errorMessage = "" }
-                        .foregroundStyle(Theme.brown)
-                    Button(action: joinGroup) {
-                        if isLoading {
-                            ProgressView()
-                                .tint(.white)
-                        } else {
-                            Text("Join")
-                        }
+                    Button(action: { mode = .choose; errorMessage = "" }) {
+                        Text("Back")
                     }
+                    .foregroundStyle(Theme.brown)
+                    Button {
+                        joinGroup()
+                    } label: {
+                        SwiftUI.Group {
+                            if isLoading {
+                                ProgressView()
+                                    .tint(.white)
+                            } else {
+                                Text("Join")
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
                     .background(Theme.brown)
@@ -136,31 +154,33 @@ struct CreateOrJoinGroupView: View {
     }
 
     private func createGroup() {
+        guard !isLoading else { return }
         let name = groupName.trimmingCharacters(in: .whitespaces)
         let code = inviteCode.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty, !code.isEmpty else { return }
         errorMessage = ""
         isLoading = true
-        Task {
+        Task { @MainActor in
+            defer { isLoading = false }
             do {
                 try await appState.createGroup(name: name, inviteCode: code.uppercased())
             } catch {
                 errorMessage = error.localizedDescription
             }
-            isLoading = false
         }
     }
 
     private func joinGroup() {
+        guard !isLoading else { return }
         errorMessage = ""
         isLoading = true
-        Task {
+        Task { @MainActor in
+            defer { isLoading = false }
             do {
                 try await appState.joinGroup(inviteCode: inviteCode)
             } catch {
                 errorMessage = error.localizedDescription
             }
-            isLoading = false
         }
     }
 }

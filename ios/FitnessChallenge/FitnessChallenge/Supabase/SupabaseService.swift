@@ -100,6 +100,20 @@ private struct PunishmentAssignmentDTO: Decodable {
     let user_id: String
 }
 
+private struct PunishmentLogDTO: Decodable {
+    let id: String
+    let group_id: String
+    let punishment_id: String
+    let user_id: String
+    let logged_at: String
+    let log_type: String
+    let cardio_activity: String?
+    let cardio_amount: Double?
+    let exercise_id: String?
+    let strength_reps: Int?
+    let note: String?
+}
+
 // MARK: - Encodable payloads (snake_case for API)
 
 private struct GroupInsert: Encodable {
@@ -385,6 +399,10 @@ final class SupabaseService {
             .limit(1)
             .execute()
             .value
+        if assignments.isEmpty {
+            print("[FitnessChallenge.Dashboard] getActiveWeek: no assignment for group today=\(today)")
+            return nil
+        }
         guard let a = assignments.first else { return nil }
         let startDate = String(a.start_date.prefix(10))
         let endDate = String(a.end_date.prefix(10))
@@ -883,6 +901,173 @@ final class SupabaseService {
             exerciseName: nil,
             exerciseTargetReps: nil
         )
+    }
+
+    /// Active punishment assigned to user where today is between start and end. Returns full punishment + exercises + assigned user IDs.
+    func getActivePunishmentForUser(userId: String, groupId: String) async throws -> ActivePunishment? {
+        let today = Self.localDateString()
+        struct AssignmentRow: Decodable { let punishment_id: String }
+        let assignments: [AssignmentRow] = try await client.from("punishment_assignments")
+            .select("punishment_id")
+            .eq("user_id", value: userId)
+            .execute()
+            .value
+        let punishmentIds = assignments.map(\.punishment_id)
+        if punishmentIds.isEmpty { return nil }
+        let list: [PunishmentDTO] = try await client.from("punishments")
+            .select()
+            .eq("group_id", value: groupId)
+            .in("id", values: punishmentIds)
+            .lte("start_date", value: today)
+            .gte("end_date", value: today)
+            .order("start_date", ascending: false)
+            .limit(1)
+            .execute()
+            .value
+        guard let p = list.first else { return nil }
+        let punishment = Punishment(
+            id: p.id,
+            groupId: p.group_id,
+            startDate: String(p.start_date.prefix(10)),
+            endDate: String(p.end_date.prefix(10)),
+            assignedUserIds: [],
+            cardioMetric: p.cardio_metric.flatMap { CardioMetric(rawValue: $0) },
+            cardioTarget: p.cardio_target,
+            exerciseName: nil,
+            exerciseTargetReps: nil
+        )
+        let exercisesDto: [PunishmentExerciseDTO] = try await client.from("punishment_exercises")
+            .select()
+            .eq("punishment_id", value: p.id)
+            .order("sort_order")
+            .execute()
+            .value
+        let exercises = exercisesDto.map { e in
+            PunishmentExercise(id: e.id, punishmentId: e.punishment_id, name: e.name, targetReps: e.target_reps, sortOrder: e.sort_order)
+        }
+        let assignmentsDto: [PunishmentAssignmentDTO] = try await client.from("punishment_assignments")
+            .select("user_id")
+            .eq("punishment_id", value: p.id)
+            .execute()
+            .value
+        let assignedUserIds = assignmentsDto.map(\.user_id)
+        return ActivePunishment(punishment: punishment, exercises: exercises, assignedUserIds: assignedUserIds)
+    }
+
+    func getPunishmentExercises(punishmentId: String) async throws -> [PunishmentExercise] {
+        let exercisesDto: [PunishmentExerciseDTO] = try await client.from("punishment_exercises")
+            .select()
+            .eq("punishment_id", value: punishmentId)
+            .order("sort_order")
+            .execute()
+            .value
+        return exercisesDto.map { PunishmentExercise(id: $0.id, punishmentId: $0.punishment_id, name: $0.name, targetReps: $0.target_reps, sortOrder: $0.sort_order) }
+    }
+
+    func getPunishmentLogs(punishmentId: String) async throws -> [PunishmentLog] {
+        let list: [PunishmentLogDTO] = try await client.from("punishment_logs")
+            .select()
+            .eq("punishment_id", value: punishmentId)
+            .order("created_at", ascending: false)
+            .execute()
+            .value
+        return list.map { r in
+            PunishmentLog(
+                id: r.id,
+                groupId: r.group_id,
+                punishmentId: r.punishment_id,
+                userId: r.user_id,
+                loggedAt: String(r.logged_at.prefix(10)),
+                logType: LogType(rawValue: r.log_type) ?? .cardio,
+                cardioActivity: r.cardio_activity.flatMap { CardioActivity(rawValue: $0) },
+                cardioAmount: r.cardio_amount,
+                exerciseId: r.exercise_id,
+                strengthReps: r.strength_reps,
+                note: r.note
+            )
+        }
+    }
+
+    func getUserPunishmentProgress(userId: String, punishmentId: String) async throws -> PunishmentProgress? {
+        let punishmentData: PunishmentDTO? = try await client.from("punishments")
+            .select()
+            .eq("id", value: punishmentId)
+            .single()
+            .execute()
+            .value
+        guard let p = punishmentData else { return nil }
+        let exercisesDto: [PunishmentExerciseDTO] = try await client.from("punishment_exercises")
+            .select()
+            .eq("punishment_id", value: punishmentId)
+            .order("sort_order")
+            .execute()
+            .value
+        struct LogRow: Decodable {
+            let log_type: String
+            let cardio_amount: Double?
+            let exercise_id: String?
+            let strength_reps: Int?
+        }
+        let logsData: [LogRow] = try await client.from("punishment_logs")
+            .select("log_type, cardio_amount, exercise_id, strength_reps")
+            .eq("punishment_id", value: punishmentId)
+            .eq("user_id", value: userId)
+            .execute()
+            .value
+        var cardioTotal: Double = 0
+        for r in logsData where r.log_type == "cardio" { cardioTotal += r.cardio_amount ?? 0 }
+        let cardioProgress: Double = p.cardio_target != nil && p.cardio_target! > 0
+            ? min(cardioTotal / p.cardio_target!, 1)
+            : 0
+        var exerciseTotals: [String: Int] = [:]
+        for ex in exercisesDto {
+            let total = logsData
+                .filter { $0.log_type == "strength" && $0.exercise_id == ex.id }
+                .reduce(0) { $0 + ($1.strength_reps ?? 0) }
+            exerciseTotals[ex.id] = total
+        }
+        let strengthProgresses = exercisesDto.map { ex in
+            let total = Double(exerciseTotals[ex.id] ?? 0)
+            return min(total / Double(ex.target_reps), 1)
+        }
+        let strengthOverallProgress = strengthProgresses.isEmpty
+            ? 0
+            : strengthProgresses.reduce(0, +) / Double(strengthProgresses.count)
+        var totalProgress: Double = 0
+        if p.cardio_target != nil && !exercisesDto.isEmpty {
+            totalProgress = (cardioProgress + strengthOverallProgress) / 2
+        } else if p.cardio_target != nil {
+            totalProgress = cardioProgress
+        } else if !exercisesDto.isEmpty {
+            totalProgress = strengthOverallProgress
+        }
+        let profile = try? await getProfile(userId: userId)
+        return PunishmentProgress(
+            userId: userId,
+            displayName: profile?.displayName ?? "Unknown",
+            cardioTotal: cardioTotal,
+            cardioProgress: cardioProgress,
+            strengthOverallProgress: strengthOverallProgress,
+            totalProgress: totalProgress,
+            exerciseTotals: exerciseTotals
+        )
+    }
+
+    func getPunishmentLeaderboard(punishmentId: String) async throws -> [PunishmentProgress] {
+        let assignments: [PunishmentAssignmentDTO] = try await client.from("punishment_assignments")
+            .select("user_id")
+            .eq("punishment_id", value: punishmentId)
+            .execute()
+            .value
+        let userIds = assignments.map(\.user_id)
+        var list: [PunishmentProgress] = []
+        for uid in userIds {
+            if let prog = try? await getUserPunishmentProgress(userId: uid, punishmentId: punishmentId) {
+                list.append(prog)
+            }
+        }
+        list.sort { $0.totalProgress > $1.totalProgress }
+        return list
     }
 
     func deletePunishment(punishmentId: String) async throws {

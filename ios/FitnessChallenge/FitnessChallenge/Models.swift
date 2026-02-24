@@ -95,6 +95,49 @@ struct Punishment: Identifiable {
     var exerciseTargetReps: Int?
 }
 
+/// Punishment exercise (from punishment_exercises).
+struct PunishmentExercise: Identifiable {
+    let id: String
+    let punishmentId: String
+    var name: String
+    var targetReps: Int
+    var sortOrder: Int
+}
+
+/// Log entry for a punishment (from punishment_logs).
+struct PunishmentLog: Identifiable {
+    let id: String
+    let groupId: String
+    let punishmentId: String
+    let userId: String
+    var loggedAt: String
+    var logType: LogType
+    var cardioActivity: CardioActivity?
+    var cardioAmount: Double?
+    var exerciseId: String?
+    var strengthReps: Int?
+    var note: String?
+}
+
+/// Active punishment with exercises and assigned users (for dashboard).
+struct ActivePunishment {
+    let punishment: Punishment
+    let exercises: [PunishmentExercise]
+    let assignedUserIds: [String]
+}
+
+/// Progress for one user on a punishment (like UserProgress).
+struct PunishmentProgress: Identifiable {
+    var id: String { userId }
+    let userId: String
+    var displayName: String
+    var cardioTotal: Double
+    var cardioProgress: Double
+    var strengthOverallProgress: Double
+    var totalProgress: Double
+    var exerciseTotals: [String: Int]  // exerciseId -> total reps
+}
+
 struct WorkoutLog: Identifiable {
     let id: String
     let groupId: String

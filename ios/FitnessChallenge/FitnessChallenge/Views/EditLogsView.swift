@@ -15,8 +15,9 @@ struct EditLogsView: View {
     private var exercises: [StrengthExercise] { appState.exercises }
     private var userLogs: [WorkoutLog] {
         guard let ch = challenge else { return [] }
+        let uid = appState.currentUserId
         return appState.logs
-            .filter { $0.userId == appState.currentUserId && $0.weekChallengeId == ch.id }
+            .filter { $0.userId.lowercased() == uid.lowercased() && $0.weekChallengeId == ch.id }
             .sorted { ($0.loggedAt + $0.id) > ($1.loggedAt + $1.id) }
     }
 
@@ -24,11 +25,9 @@ struct EditLogsView: View {
     @State private var editAmount: String = ""
     @State private var isSaving = false
     @State private var deletingLogId: String?
-    @State private var showDeleteConfirm = false
-    @State private var logToDelete: WorkoutLog?
 
     var body: some View {
-        Group {
+        SwiftUI.Group {
             if challenge == nil {
                 ContentUnavailableView("No active challenge", systemImage: "dumbbell", description: Text("There is no challenge this week. Logs can be edited when a challenge is active."))
             } else if userLogs.isEmpty {
@@ -50,6 +49,15 @@ struct EditLogsView: View {
                             editRow(log: log)
                         } else {
                             displayRow(log: log)
+                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                    Button(role: .destructive) {
+                                        Task {
+                                            deletingLogId = log.id
+                                            await appState.deleteLog(logId: log.id)
+                                            deletingLogId = nil
+                                        }
+                                    } label: { Label("Delete", systemImage: "trash") }
+                                }
                         }
                     }
                 }
@@ -58,30 +66,13 @@ struct EditLogsView: View {
         }
         .navigationTitle("Edit Logs")
         .navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog("Delete log?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
-            Button("Delete", role: .destructive) {
-                if let log = logToDelete {
-                    Task {
-                        deletingLogId = log.id
-                        await appState.deleteLog(logId: log.id)
-                        deletingLogId = nil
-                        logToDelete = nil
-                    }
-                }
-            }
-            Button("Cancel", role: .cancel) {
-                logToDelete = nil
-            }
-        } message: {
-            Text("Are you sure you want to delete this log?")
-        }
     }
 
     private func displayRow(log: WorkoutLog) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text(logTypeLabel(log))
-                    .font(.subheadline.fontWeight(.semibold))
+                    .font(.subheadline.weight(.semibold))
                 Text(amountLabel(log))
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -90,25 +81,17 @@ struct EditLogsView: View {
                     .foregroundStyle(.tertiary)
             }
             Spacer()
-            HStack(spacing: 8) {
-                Button("Edit") {
-                    editingLogId = log.id
-                    if log.logType == .cardio {
-                        editAmount = log.cardioAmount.map { String($0) } ?? ""
-                    } else {
-                        editAmount = log.strengthReps.map { String($0) } ?? ""
-                    }
+            Button("Edit") {
+                editingLogId = log.id
+                if log.logType == .cardio {
+                    editAmount = log.cardioAmount.map { String($0) } ?? ""
+                } else {
+                    editAmount = log.strengthReps.map { String($0) } ?? ""
                 }
-                .font(.caption.weight(.medium))
-                .foregroundStyle(Theme.brown)
-                Button("Delete") {
-                    logToDelete = log
-                    showDeleteConfirm = true
-                }
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.red)
-                .disabled(deletingLogId == log.id)
             }
+            .font(.caption.weight(.medium))
+            .foregroundStyle(Theme.brown)
+            .disabled(deletingLogId == log.id)
         }
         .padding(.vertical, 4)
     }
@@ -116,7 +99,7 @@ struct EditLogsView: View {
     private func editRow(log: WorkoutLog) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(logTypeLabel(log))
-                .font(.subheadline.fontWeight(.medium))
+                .font(.subheadline.weight(.medium))
             HStack {
                 TextField(log.logType == .cardio ? "Amount" : "Reps", text: $editAmount)
                     .keyboardType(log.logType == .cardio ? .decimalPad : .numberPad)

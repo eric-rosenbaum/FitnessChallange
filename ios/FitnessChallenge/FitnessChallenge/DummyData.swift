@@ -86,7 +86,8 @@ enum DummyData {
     }
 
     static func calculateUserProgress(userId: String, logs: [WorkoutLog] = logs) -> UserProgress {
-        let userLogs = logs.filter { $0.userId == userId }
+        let uid = userId.lowercased()
+        let userLogs = logs.filter { $0.userId.lowercased() == uid }
         var cardioTotal: Double = 0
         var exerciseTotals: [String: Int] = [:]
         for log in userLogs {
@@ -121,7 +122,8 @@ enum DummyData {
 
     /// Same as calculateUserProgress but using provided challenge and exercises (for Supabase/active week).
     static func calculateUserProgress(userId: String, logs: [WorkoutLog], challenge: WeekChallenge, exercises: [StrengthExercise], displayName: String? = nil) -> UserProgress {
-        let userLogs = logs.filter { $0.userId == userId }
+        let uid = userId.lowercased()
+        let userLogs = logs.filter { $0.userId.lowercased() == uid }
         var cardioTotal: Double = 0
         var exerciseTotals: [String: Int] = [:]
         for log in userLogs {
@@ -284,7 +286,8 @@ enum DummyData {
     /// Cardio breakdown by activity (Run, Walk, etc.) for one user.
     static func userCardioBreakdown(userId: String, logs: [WorkoutLog] = logs) -> [String: Double] {
         var out: [String: Double] = [:]
-        for log in logs where log.userId == userId && log.logType == .cardio {
+        let uid = userId.lowercased()
+        for log in logs where log.userId.lowercased() == uid && log.logType == .cardio {
             guard let act = log.cardioActivity, let amt = log.cardioAmount else { continue }
             let name = act.rawValue.prefix(1).uppercased() + act.rawValue.dropFirst()
             out[name, default: 0] += amt
@@ -401,26 +404,31 @@ enum DummyData {
         progressOverTime(logs: logs, weekStart: weekStart, weekEnd: weekEnd, challenge: weekChallenge, exercises: exercises, memberIds: memberships.map(\.userId))
     }
 
+    /// Progress over time: one point per day from weekStart through weekEnd (full week, regardless of today).
     static func progressOverTime(logs: [WorkoutLog], weekStart: String, weekEnd: String, challenge: WeekChallenge, exercises: [StrengthExercise], memberIds: [String]) -> [ChartPoint] {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         formatter.timeZone = TimeZone.current
-        guard let start = formatter.date(from: weekStart), let end = formatter.date(from: weekEnd) else { return [] }
+        let startStr = String(weekStart.prefix(10))
+        let endStr = String(weekEnd.prefix(10))
+        guard let start = formatter.date(from: startStr), let end = formatter.date(from: endStr) else { return [] }
         var points: [ChartPoint] = []
         var current = start
+        let calendar = Calendar.current
         while current <= end {
             let dateStr = formatter.string(from: current)
             var progressByUser: [String: Double] = [:]
             for userId in memberIds {
+                let uid = userId.lowercased()
                 let logsUpTo = logs.filter { log in
                     guard let logDate = formatter.date(from: log.loggedAt) else { return false }
-                    return log.userId == userId && logDate <= current
+                    return log.userId.lowercased() == uid && logDate <= current
                 }
                 let prog = calculateUserProgress(userId: userId, logs: logsUpTo, challenge: challenge, exercises: exercises)
                 progressByUser[userId] = prog.totalProgress * 100
             }
             points.append(ChartPoint(date: dateStr, progressByUser: progressByUser))
-            current = Calendar.current.date(byAdding: .day, value: 1, to: current) ?? current
+            current = calendar.date(byAdding: .day, value: 1, to: current) ?? current
         }
         return points
     }

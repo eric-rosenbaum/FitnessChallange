@@ -52,7 +52,7 @@ struct ProgressCardView: View {
                     Text("Strength")
                         .font(.caption)
                         .fontWeight(.semibold)
-                    DonutView(progress: progress.strengthOverallProgress, color: Theme.greenProgress, size: 90)
+                    DonutView(progress: progress.strengthOverallProgress, color: Theme.strengthBlue, size: 90)
                         .padding(.top, 16)
                     Text("\(Int(progress.strengthOverallProgress * 100))% complete")
                         .font(.caption)
@@ -97,16 +97,20 @@ struct DonutView: View {
                 .trim(from: 0, to: min(progress, 1.0))
                 .stroke(color.opacity(0.85), style: StrokeStyle(lineWidth: strokeWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
+                .animation(.easeOut(duration: 0.6), value: progress)
             if progress >= 1.0 {
                 Image(systemName: "checkmark")
                     .font(.title)
                     .fontWeight(.bold)
+                    .transition(.scale.combined(with: .opacity))
             } else {
                 Text("\(Int(progress * 100))%")
                     .font(.caption)
                     .fontWeight(.bold)
+                    .contentTransition(.numericText())
             }
         }
+        .animation(.easeOut(duration: 0.6), value: progress)
         .frame(width: size, height: size)
     }
 }

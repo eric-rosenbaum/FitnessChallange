@@ -26,6 +26,32 @@ struct HomeView: View {
                         timeRemainingText: appState.timeRemainingText,
                         cardioBreakdown: appState.currentUserCardioBreakdown
                     )
+                    if let ap = appState.activePunishment, let prog = appState.punishmentProgress {
+                        PunishmentProgressCardView(
+                            progress: prog,
+                            punishment: ap.punishment,
+                            exercises: ap.exercises,
+                            logs: appState.punishmentLogs,
+                            userId: appState.currentUserId,
+                            timeRemainingText: AppState.punishmentTimeRemaining(endDate: ap.punishment.endDate)
+                        )
+                        PunishmentLeaderboardView(
+                            progressList: appState.punishmentLeaderboard,
+                            currentUserId: appState.currentUserId,
+                            exercises: ap.exercises,
+                            punishment: ap.punishment,
+                            logs: appState.punishmentLogs,
+                            titleOverride: "Punishment Progress"
+                        )
+                    } else if let lp = appState.leaderboardPunishment, !appState.punishmentLeaderboard.isEmpty {
+                        PunishmentLeaderboardView(
+                            progressList: appState.punishmentLeaderboard,
+                            currentUserId: appState.currentUserId,
+                            exercises: lp.exercises,
+                            punishment: lp.punishment,
+                            logs: appState.punishmentLogs
+                        )
+                    }
                     GroupProgressCardView(
                         challenge: ch,
                         exercises: appState.exercises,
@@ -43,7 +69,8 @@ struct HomeView: View {
                     LeaderboardView(
                         progressList: appState.leaderboard,
                         currentUserId: appState.currentUserId,
-                        exercises: appState.exercises
+                        exercises: appState.exercises,
+                        challenge: ch
                     )
                     ActivityFeedView(items: appState.activityFeed)
                     ProgressOverTimeChartView(
@@ -61,5 +88,9 @@ struct HomeView: View {
             .padding()
         }
         .background(Color(.systemGroupedBackground))
+        .onAppear {
+            let ch = challenge != nil
+            print("[FitnessChallenge.Dashboard] HomeView onAppear useSupabase=\(appState.useSupabase) challenge=\(ch) logs=\(appState.logs.count) leaderboard=\(appState.leaderboard.count) loadError=\(appState.loadError ?? "nil")")
+        }
     }
 }

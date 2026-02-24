@@ -27,6 +27,7 @@ struct LogView: View {
     @State private var selectedExerciseId: String = ""
     @State private var strengthReps: String = ""
     @State private var loggedDate: Date = Date()
+    @State private var isSaving: Bool = false
 
     private var challenge: WeekChallenge? { appState.challenge }
     private var exercises: [StrengthExercise] { appState.exercises }
@@ -52,9 +53,16 @@ struct LogView: View {
             }
             if challenge != nil {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(action: saveLog, label: { Text("Save") })
-                        .disabled(!canSave)
-                        .fontWeight(.semibold)
+                    Button(action: saveLog, label: {
+                        if isSaving {
+                            ProgressView()
+                                .scaleEffect(0.9)
+                        } else {
+                            Text("Save")
+                        }
+                    })
+                    .disabled(!canSave || isSaving)
+                    .fontWeight(.semibold)
                 }
             }
             ToolbarItemGroup(placement: .keyboard) {
@@ -71,9 +79,6 @@ struct LogView: View {
                 selectedExerciseId = first.id
             }
         }
-        .simultaneousGesture(TapGesture().onEnded { _ in
-            focusedField = nil
-        })
     }
 
     private func logForm(challenge: WeekChallenge) -> some View {
@@ -90,6 +95,7 @@ struct LogView: View {
                             Text(a.displayName).tag(a)
                         }
                     }
+                    .pickerStyle(.menu)
                     TextField(challenge.cardioMetric.displayName, text: $cardioAmount)
                         .keyboardType(.decimalPad)
                         .focused($focusedField, equals: .cardioAmount)
@@ -100,6 +106,7 @@ struct LogView: View {
                             Text(ex.name).tag(ex.id)
                         }
                     }
+                    .pickerStyle(.menu)
                     TextField("Reps", text: $strengthReps)
                         .keyboardType(.numberPad)
                         .focused($focusedField, equals: .strengthReps)
@@ -124,7 +131,8 @@ struct LogView: View {
     }
 
     private func saveLog() {
-        guard let challenge, canSave else { return }
+        guard let challenge, canSave, !isSaving else { return }
+        isSaving = true
         dismissKeyboard()
         let generator = UIImpactFeedbackGenerator(style: .medium)
         generator.impactOccurred()
@@ -160,7 +168,9 @@ struct LogView: View {
                 strengthReps: reps
             )
         }
-        appState.addLog(log) { [sheetIsPresented, onSaveSwitchToHome] in
+        appState.addLog(log) { [sheetIsPresented, onSaveSwitchToHome] success in
+            isSaving = false
+            guard success else { return }
             if let sheetIsPresented {
                 sheetIsPresented.wrappedValue = false
             } else {
