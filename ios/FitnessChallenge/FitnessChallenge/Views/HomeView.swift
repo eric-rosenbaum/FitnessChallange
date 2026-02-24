@@ -75,7 +75,9 @@ struct HomeView: View {
                     ActivityFeedView(items: appState.activityFeed)
                     ProgressOverTimeChartView(
                         chartPoints: appState.progressOverTimeChartPoints,
-                        progressList: appState.leaderboard
+                        progressList: appState.leaderboard,
+                        weekStartDate: activeWeek.weekAssignment.startDate,
+                        weekEndDate: activeWeek.weekAssignment.endDate
                     )
                 } else {
                     Text("No active challenge")

@@ -394,9 +394,9 @@ enum DummyData {
         return out
     }
 
-    /// Progress over time: for each day in [startDate...endDate], cumulative progress % per user.
+    /// Progress over time: timestamp-based points for exact progress at each moment.
     struct ChartPoint {
-        let date: String
+        let timestamp: String  // ISO 8601 for x-axis positioning
         let progressByUser: [String: Double] // userId -> 0...100
     }
 
@@ -404,31 +404,71 @@ enum DummyData {
         progressOverTime(logs: logs, weekStart: weekStart, weekEnd: weekEnd, challenge: weekChallenge, exercises: exercises, memberIds: memberships.map(\.userId))
     }
 
-    /// Progress over time: one point per day from weekStart through weekEnd (full week, regardless of today).
+    /// Progress over time: points at each log event + day boundaries. Progress reflects exact time (created_at or logged_at).
+    /// X-axis spans full week (start midnight to end 23:59). Data lines stop at "now".
     static func progressOverTime(logs: [WorkoutLog], weekStart: String, weekEnd: String, challenge: WeekChallenge, exercises: [StrengthExercise], memberIds: [String]) -> [ChartPoint] {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         formatter.timeZone = TimeZone.current
+        let cal = Calendar.current
         let startStr = String(weekStart.prefix(10))
         let endStr = String(weekEnd.prefix(10))
-        guard let start = formatter.date(from: startStr), let end = formatter.date(from: endStr) else { return [] }
+        guard let startDay = formatter.date(from: startStr), let endDay = formatter.date(from: endStr) else { return [] }
+        let weekStartDate = cal.startOfDay(for: startDay)
+        let weekEndDate = cal.date(bySettingHour: 23, minute: 59, second: 59, of: endDay) ?? endDay
+        let now = Date()
+
+        /// Effective timestamp for a log: createdAt if available, else loggedAt at midday.
+        func effectiveTimestamp(for log: WorkoutLog) -> Date? {
+            if let created = log.createdAt, let d = ISO8601DateFormatter().date(from: created) {
+                return d
+            }
+            if let created = log.createdAt {
+                let fallback = DateFormatter()
+                fallback.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+                fallback.timeZone = TimeZone(identifier: "UTC")
+                if let d = fallback.date(from: String(created.prefix(19))) { return d }
+            }
+            guard let d = formatter.date(from: String(log.loggedAt.prefix(10))) else { return nil }
+            return cal.date(bySettingHour: 12, minute: 0, second: 0, of: d)
+        }
+
+        var timestamps: Set<Date> = [weekStartDate]
+        for log in logs {
+            if let t = effectiveTimestamp(for: log), t >= weekStartDate, t <= weekEndDate {
+                timestamps.insert(t)
+            }
+        }
+        if now >= weekStartDate, now <= weekEndDate {
+            timestamps.insert(now)
+        }
+        timestamps.insert(weekEndDate)
+
+        var dayCurrent = weekStartDate
+        while dayCurrent <= weekEndDate {
+            timestamps.insert(dayCurrent)
+            dayCurrent = cal.date(byAdding: .day, value: 1, to: dayCurrent) ?? dayCurrent
+        }
+
+        let sorted = timestamps.sorted()
         var points: [ChartPoint] = []
-        var current = start
-        let calendar = Calendar.current
-        while current <= end {
-            let dateStr = formatter.string(from: current)
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+        for t in sorted {
+            guard t <= now else { continue }
             var progressByUser: [String: Double] = [:]
             for userId in memberIds {
                 let uid = userId.lowercased()
                 let logsUpTo = logs.filter { log in
-                    guard let logDate = formatter.date(from: log.loggedAt) else { return false }
-                    return log.userId.lowercased() == uid && logDate <= current
+                    guard let logT = effectiveTimestamp(for: log) else { return false }
+                    return log.userId.lowercased() == uid && logT <= t
                 }
                 let prog = calculateUserProgress(userId: userId, logs: logsUpTo, challenge: challenge, exercises: exercises)
                 progressByUser[userId] = prog.totalProgress * 100
             }
-            points.append(ChartPoint(date: dateStr, progressByUser: progressByUser))
-            current = calendar.date(byAdding: .day, value: 1, to: current) ?? current
+            let tsStr = iso.string(from: t)
+            points.append(ChartPoint(timestamp: tsStr, progressByUser: progressByUser))
         }
         return points
     }

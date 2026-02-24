@@ -11,17 +11,34 @@ struct LeaderboardView: View {
     let exercises: [StrengthExercise]
     let challenge: WeekChallenge?
 
+    private static let displayLimit = 3
+    @State private var showAll = false
+
+    private var displayedItems: [UserProgress] {
+        showAll ? progressList : Array(progressList.prefix(Self.displayLimit))
+    }
+
     private var cardioMetricSuffix: String {
         challenge?.cardioMetric == .minutes ? "min" : "mi"
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Leaderboard")
-                .font(.headline)
-                .foregroundStyle(.primary)
+            HStack {
+                Text("Leaderboard")
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                Spacer()
+                if progressList.count > Self.displayLimit {
+                    Button(showAll ? "Hide all" : "Show all") {
+                        showAll.toggle()
+                    }
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(Theme.brown)
+                }
+            }
             VStack(spacing: 8) {
-                ForEach(progressList) { progress in
+                ForEach(displayedItems) { progress in
                     let isYou = progress.userId.lowercased() == currentUserId.lowercased()
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(spacing: 12) {

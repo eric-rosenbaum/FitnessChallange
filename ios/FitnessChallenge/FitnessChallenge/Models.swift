@@ -150,6 +150,23 @@ struct WorkoutLog: Identifiable {
     var exerciseId: String?
     var strengthReps: Int?
     var note: String?
+    /// When the log was created (ISO 8601). If nil, use loggedAt for date-only fallback.
+    var createdAt: String?
+
+    init(id: String, groupId: String, weekChallengeId: String, userId: String, loggedAt: String, logType: LogType, cardioActivity: CardioActivity? = nil, cardioAmount: Double? = nil, exerciseId: String? = nil, strengthReps: Int? = nil, note: String? = nil, createdAt: String? = nil) {
+        self.id = id
+        self.groupId = groupId
+        self.weekChallengeId = weekChallengeId
+        self.userId = userId
+        self.loggedAt = loggedAt
+        self.logType = logType
+        self.cardioActivity = cardioActivity
+        self.cardioAmount = cardioAmount
+        self.exerciseId = exerciseId
+        self.strengthReps = strengthReps
+        self.note = note
+        self.createdAt = createdAt
+    }
 }
 
 // MARK: - UI Models

@@ -588,7 +588,8 @@ final class SupabaseService {
                 cardioAmount: log.cardio_amount,
                 exerciseId: log.exercise_id,
                 strengthReps: log.strength_reps,
-                note: log.note
+                note: log.note,
+                createdAt: log.created_at
             )
         }
     }
@@ -631,7 +632,8 @@ final class SupabaseService {
             cardioAmount: dto.cardio_amount,
             exerciseId: dto.exercise_id,
             strengthReps: dto.strength_reps,
-            note: dto.note
+            note: dto.note,
+            createdAt: dto.created_at
         )
     }
 

@@ -3,6 +3,8 @@
 //  FitnessChallenge
 //
 //  Line chart: cumulative progress over the week, one line per participant, legend below.
+//  X-axis: full week (start midnight to end 23:59). Data lines stop at current time.
+//  Data reflects progress at exact timestamp; axis labels show days only.
 //
 
 import SwiftUI
@@ -10,6 +12,8 @@ import SwiftUI
 struct ProgressOverTimeChartView: View {
     let chartPoints: [DummyData.ChartPoint]
     let progressList: [UserProgress] // order determines color; displayName for legend
+    let weekStartDate: String
+    let weekEndDate: String
 
     private static let colors: [Color] = [
         Color(red: 0.545, green: 0.271, blue: 0.075),   // brown
@@ -22,15 +26,27 @@ struct ProgressOverTimeChartView: View {
         Color(red: 0.745, green: 0.102, blue: 0.365),  // pink
     ]
 
-    private var dateLabels: [String] {
+    /// Day labels for x-axis: one per day (e.g. "Mon", "Tue").
+    private var dayLabels: [(label: String, xFraction: CGFloat)] {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         formatter.timeZone = TimeZone.current
-        var out: [String] = []
-        for pt in chartPoints {
-            guard let d = formatter.date(from: pt.date) else { continue }
-            formatter.dateFormat = "MMM d"
-            out.append(formatter.string(from: d))
+        let dayLabelFormatter = DateFormatter()
+        dayLabelFormatter.dateFormat = "EEE"
+        dayLabelFormatter.timeZone = TimeZone.current
+        let cal = Calendar.current
+        let startStr = String(weekStartDate.prefix(10))
+        let endStr = String(weekEndDate.prefix(10))
+        guard let start = formatter.date(from: startStr), let end = formatter.date(from: endStr) else { return [] }
+        let totalDays = max(1, cal.dateComponents([.day], from: start, to: end).day ?? 0) + 1
+        var out: [(String, CGFloat)] = []
+        var current = start
+        var i = 0
+        while current <= end {
+            let frac = totalDays > 1 ? CGFloat(i) / CGFloat(totalDays - 1) : 0.5
+            out.append((dayLabelFormatter.string(from: current), frac))
+            current = cal.date(byAdding: .day, value: 1, to: current) ?? current
+            i += 1
         }
         return out
     }
@@ -60,7 +76,9 @@ struct ProgressOverTimeChartView: View {
                 width: geo.size.width,
                 chartPoints: chartPoints,
                 progressList: progressList,
-                dateLabels: dateLabels,
+                weekStartDate: weekStartDate,
+                weekEndDate: weekEndDate,
+                dayLabels: dayLabels,
                 colors: Self.colors
             )
         }
@@ -89,7 +107,9 @@ private struct ChartContentView: View {
     let width: CGFloat
     let chartPoints: [DummyData.ChartPoint]
     let progressList: [UserProgress]
-    let dateLabels: [String]
+    let weekStartDate: String
+    let weekEndDate: String
+    let dayLabels: [(label: String, xFraction: CGFloat)]
     let colors: [Color]
 
     private let h: CGFloat = 200
@@ -99,10 +119,49 @@ private struct ChartContentView: View {
     private let paddingBottom: CGFloat = 32
     private var chartW: CGFloat { width - paddingLeft - paddingRight }
     private var chartH: CGFloat { h - paddingTop - paddingBottom }
-    private var n: Int { max(chartPoints.count - 1, 1) }
 
-    private func xIndex(_ i: Int) -> CGFloat {
-        paddingLeft + (CGFloat(i) / CGFloat(n)) * chartW
+    private var weekStart: Date? {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.timeZone = TimeZone.current
+        guard let d = f.date(from: String(weekStartDate.prefix(10))) else { return nil }
+        return Calendar.current.startOfDay(for: d)
+    }
+
+    private var weekEnd: Date? {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.timeZone = TimeZone.current
+        let cal = Calendar.current
+        guard let d = f.date(from: String(weekEndDate.prefix(10))) else { return nil }
+        return cal.date(bySettingHour: 23, minute: 59, second: 59, of: d)
+    }
+
+    private func xForTimestamp(_ ts: String) -> CGFloat? {
+        guard let start = weekStart, let end = weekEnd else { return nil }
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        var date = iso.date(from: ts)
+        if date == nil {
+            iso.formatOptions = [.withInternetDateTime]
+            date = iso.date(from: ts)
+        }
+        if date == nil {
+            let f = DateFormatter()
+            f.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+            f.timeZone = TimeZone(identifier: "UTC")
+            date = f.date(from: String(ts.prefix(19)))
+        }
+        if date == nil {
+            let f = DateFormatter()
+            f.dateFormat = "yyyy-MM-dd"
+            date = f.date(from: String(ts.prefix(10)))
+        }
+        guard let t = date else { return nil }
+        let range = end.timeIntervalSince(start)
+        guard range > 0 else { return paddingLeft }
+        let frac = t.timeIntervalSince(start) / range
+        return paddingLeft + CGFloat(min(max(frac, 0), 1)) * chartW
     }
 
     private func yPercent(_ pct: Double) -> CGFloat {
@@ -113,8 +172,8 @@ private struct ChartContentView: View {
         var path = Path()
         guard !chartPoints.isEmpty else { return path }
         for (i, pt) in chartPoints.enumerated() {
+            guard let x = xForTimestamp(pt.timestamp) else { continue }
             let pct = pt.progressByUser[userId] ?? 0
-            let x = xIndex(i)
             let y = yPercent(pct)
             if i == 0 { path.move(to: CGPoint(x: x, y: y)) }
             else { path.addLine(to: CGPoint(x: x, y: y)) }
@@ -136,11 +195,22 @@ private struct ChartContentView: View {
                 linePath(userId: progress.userId)
                     .stroke(colors[index % colors.count], style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
             }
-            ForEach(Array(chartPoints.indices), id: \.self) { i in
-                Text(i < dateLabels.count ? dateLabels[i] : "")
+            ForEach(Array(progressList.enumerated()), id: \.element.userId) { index, progress in
+                if let last = chartPoints.last,
+                   let x = xForTimestamp(last.timestamp) {
+                    let pct = last.progressByUser[progress.userId] ?? 0
+                    let y = yPercent(pct)
+                    Circle()
+                        .fill(colors[index % colors.count])
+                        .frame(width: 8, height: 8)
+                        .position(x: x, y: y)
+                }
+            }
+            ForEach(Array(dayLabels.enumerated()), id: \.offset) { _, item in
+                Text(item.label)
                     .font(.system(size: 9))
                     .foregroundStyle(.secondary)
-                    .position(x: xIndex(i), y: h - 10)
+                    .position(x: paddingLeft + item.xFraction * chartW, y: h - 10)
             }
             ForEach([0, 25, 50, 75, 100], id: \.self) { pct in
                 Text("\(pct)%")
