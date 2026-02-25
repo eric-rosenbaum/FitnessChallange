@@ -58,6 +58,10 @@ struct ProfileView: View {
                 }
             }
             Section {
+                Link("Privacy Policy", destination: URL(string: "https://eric-rosenbaum.github.io/friendsfitnesschallenge-privacy/")!)
+                    .foregroundStyle(Theme.brown)
+            }
+            Section {
                 Button("Sign Out", role: .destructive, action: onSignOut)
             }
         }
