@@ -115,13 +115,14 @@ export async function createGroup(name: string, inviteCode: string, userId: stri
 
 export async function joinGroupByInviteCode(inviteCode: string, userId: string): Promise<Group> {
   const supabase = createClient() as SupabaseClient
-  const { data: group, error: groupError } = await supabase
+  const { data: groups, error: groupError } = await supabase
     .from('groups')
     .select('*')
     .eq('invite_code', inviteCode)
-    .single()
+    .limit(2)
   
-  if (groupError) throw new Error('Invalid invite code')
+  if (groupError || !groups || groups.length !== 1) throw new Error('Invalid invite code')
+  const group = groups[0]
   
   const { error: membershipError } = await supabase
     .from('group_memberships')

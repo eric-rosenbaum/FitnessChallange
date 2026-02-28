@@ -11,6 +11,8 @@ struct ProfileView: View {
 
     @State private var isEditingName = false
     @State private var editingNameValue: String = ""
+    @State private var showDeleteAccountAlert = false
+    @State private var isDeletingAccount = false
 
     var body: some View {
         List {
@@ -63,11 +65,37 @@ struct ProfileView: View {
             }
             Section {
                 Button("Sign Out", role: .destructive, action: onSignOut)
+                Button("Delete Account", role: .destructive) {
+                    showDeleteAccountAlert = true
+                }
+                .disabled(isDeletingAccount)
             }
         }
         .navigationTitle("Profile")
+        .alert("Are you sure?", isPresented: $showDeleteAccountAlert) {
+            Button("Cancel", role: .cancel) { showDeleteAccountAlert = false }
+            Button("Delete Account", role: .destructive) {
+                deleteAccount()
+            }
+        } message: {
+            Text("This will permanently delete your account and all your data. This action cannot be undone.")
+        }
         .onAppear {
             editingNameValue = appState.currentUserDisplayName
+        }
+    }
+
+    private func deleteAccount() {
+        isDeletingAccount = true
+        Task {
+            do {
+                try await appState.deleteAccount()
+            } catch {
+                await MainActor.run {
+                    appState.loadError = error.localizedDescription
+                    isDeletingAccount = false
+                }
+            }
         }
     }
 }

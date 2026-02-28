@@ -23,17 +23,20 @@ export function useUserGroup() {
         return
       }
 
-      // Get user's group membership
-      const { data: membershipData } = await supabase
+      // Get user's group membership (use limit(1) to avoid "cannot coerce" when group was deleted)
+      const { data: membershipRows } = await supabase
         .from('group_memberships')
         .select('*, groups(*)')
         .eq('user_id', user.id)
         .limit(1)
-        .single()
 
-      if (membershipData) {
+      const membershipData = membershipRows?.[0]
+      if (membershipData && (membershipData as any).groups) {
         setMembership(membershipData as GroupMembership)
         setGroup((membershipData as any).groups as Group)
+      } else {
+        setGroup(null)
+        setMembership(null)
       }
       setIsLoading(false)
     }

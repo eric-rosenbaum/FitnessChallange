@@ -264,6 +264,11 @@ final class SupabaseService {
         try await client.auth.signOut()
     }
 
+    /// Permanently deletes the current user's account and all associated data.
+    func deleteUser() async throws {
+        try await client.rpc("delete_user").execute()
+    }
+
     func session() async -> Bool {
         (try? await client.auth.session) != nil
     }
@@ -280,6 +285,23 @@ final class SupabaseService {
         return Profile(id: dto.id, displayName: dto.display_name)
     }
 
+    /// Fetch display names for multiple user IDs. Returns [userId: displayName]. Used when leaderboard is empty (no active challenge).
+    func getProfilesForUserIds(_ userIds: [String]) async throws -> [String: String] {
+        guard !userIds.isEmpty else { return [:] }
+        let unique = Array(Set(userIds))
+        struct ProfileRow: Decodable { let id: String; let display_name: String? }
+        let rows: [ProfileRow] = try await client.from("profiles")
+            .select("id, display_name")
+            .in("id", values: unique)
+            .execute()
+            .value
+        var result: [String: String] = [:]
+        for r in rows {
+            result[r.id.lowercased()] = r.display_name?.isEmpty == false ? r.display_name! : "Member"
+        }
+        return result
+    }
+
     func updateProfile(userId: String, displayName: String) async throws {
         try await client.from("profiles")
             .update(ProfileUpdate(display_name: displayName))
@@ -290,12 +312,13 @@ final class SupabaseService {
     // MARK: - Group & membership
 
     func getGroup(groupId: String) async throws -> Group? {
-        let dto: GroupDTO = try await client.from("groups")
+        let list: [GroupDTO] = try await client.from("groups")
             .select()
             .eq("id", value: groupId)
-            .single()
+            .limit(1)
             .execute()
             .value
+        guard let dto = list.first else { return nil }
         return Group(id: dto.id, name: dto.name, inviteCode: dto.invite_code)
     }
 
@@ -313,12 +336,20 @@ final class SupabaseService {
     }
 
     func joinGroupByInviteCode(inviteCode: String, userId: String) async throws -> Group {
-        let dto: GroupDTO = try await client.from("groups")
+        struct GroupDTOOptional: Decodable {
+            let id: String
+            let name: String
+            let invite_code: String
+        }
+        let list: [GroupDTOOptional] = try await client.from("groups")
             .select()
             .eq("invite_code", value: inviteCode)
-            .single()
+            .limit(2)
             .execute()
             .value
+        guard let dto = list.first, list.count == 1 else {
+            throw NSError(domain: "FitnessChallenge", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid invite code"])
+        }
         try await client.from("group_memberships")
             .insert(MembershipInsert(group_id: dto.id, user_id: userId, role: "member"))
             .execute()
@@ -405,6 +436,9 @@ final class SupabaseService {
 
     // MARK: - Active week
 
+    /// Returns the assignment whose date range contains today (start_date <= today <= end_date).
+    /// When an upcoming assignment's start date is reached, it automatically becomes the active week
+    /// (same DB row; the query returns it based on the current date).
     func getActiveWeek(groupId: String) async throws -> ActiveWeek? {
         let today = Self.localDateString()
         let assignments: [WeekAssignmentDTO] = try await client.from("week_assignments")
@@ -486,6 +520,7 @@ final class SupabaseService {
         return WeekAssignment(id: a.id, groupId: a.group_id, startDate: String(a.start_date.prefix(10)), endDate: String(a.end_date.prefix(10)), hostUserId: a.host_user_id)
     }
 
+    /// Returns assignments with start_date >= today. Excludes the active assignment so it doesn't appear in both sections.
     func getUpcomingAssignments(groupId: String, excludeAssignmentId: String?) async throws -> [WeekAssignment] {
         let today = Self.localDateString()
         var query = client.from("week_assignments")

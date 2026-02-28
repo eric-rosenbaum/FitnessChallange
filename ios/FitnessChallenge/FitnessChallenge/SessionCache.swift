@@ -19,6 +19,7 @@ struct SessionCache: Codable {
     var activeWeek: ActiveWeek?
     var logs: [WorkoutLog]
     var leaderboard: [UserProgress]
+    var profiles: [String: String]?
     var activityFeed: [ActivityFeedItem]
     var upcomingAssignments: [WeekAssignment]
     var punishments: [Punishment]

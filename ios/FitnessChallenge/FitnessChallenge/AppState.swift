@@ -23,6 +23,7 @@ final class AppState {
     var groupId: String?
     var activeWeekLoaded: ActiveWeek?
     var leaderboardLoaded: [UserProgress] = []
+    var profilesLoaded: [String: String] = [:]
     var activityFeedLoaded: [ActivityFeedItem] = []
     var upcomingAssignmentsLoaded: [WeekAssignment] = []
     /// Next upcoming assignment where current user is host (within 3 days), with no challenge yet. For "You're the host" banner.
@@ -39,6 +40,8 @@ final class AppState {
     var currentUserIdFromSession: String?
 
     private var _supabaseService: SupabaseService?
+    private var _refreshTask: Task<Void, Never>?
+    private var _refreshPending = false
 
     private var supabaseService: SupabaseService? {
         if let s = _supabaseService { return s }
@@ -67,6 +70,7 @@ final class AppState {
             activeWeekLoaded = cache.activeWeek
             logs = cache.logs
             leaderboardLoaded = cache.leaderboard
+            profilesLoaded = cache.profiles ?? [:]
             activityFeedLoaded = cache.activityFeed
             upcomingAssignmentsLoaded = cache.upcomingAssignments
             punishments = cache.punishments
@@ -95,6 +99,7 @@ final class AppState {
 
     func displayName(for userId: String) -> String {
         if userId.lowercased() == currentUserId.lowercased() { return currentUserDisplayName }
+        if let name = profilesLoaded[userId.lowercased()] { return name }
         return leaderboardLoaded.first(where: { $0.userId.lowercased() == userId.lowercased() })?.displayName ?? "Member"
     }
 
@@ -180,12 +185,9 @@ final class AppState {
     }
 
     var timeRemainingText: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = TimeZone.current
-        guard let end = formatter.date(from: activeWeek.weekAssignment.endDate) else { return "" }
+        guard let end = Self.dateFormatterYYYYMMDD.date(from: activeWeek.weekAssignment.endDate) else { return "" }
         var cal = Calendar.current
-        cal.timeZone = formatter.timeZone
+        cal.timeZone = Self.dateFormatterYYYYMMDD.timeZone
         let endOfDay = cal.date(bySettingHour: 23, minute: 59, second: 59, of: end) ?? end
         let remaining = endOfDay.timeIntervalSince(Date())
         guard remaining > 0 else { return "0 mins left" }
@@ -210,12 +212,9 @@ final class AppState {
 
     /// Time remaining until punishment end date (for punishment progress card).
     static func punishmentTimeRemaining(endDate: String) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = TimeZone.current
-        guard let end = formatter.date(from: String(endDate.prefix(10))) else { return "" }
+        guard let end = Self.dateFormatterYYYYMMDD.date(from: String(endDate.prefix(10))) else { return "" }
         var cal = Calendar.current
-        cal.timeZone = formatter.timeZone
+        cal.timeZone = Self.dateFormatterYYYYMMDD.timeZone
         let endOfDay = cal.date(bySettingHour: 23, minute: 59, second: 59, of: end) ?? end
         let remaining = endOfDay.timeIntervalSince(Date())
         guard remaining > 0 else { return "0 mins left" }
@@ -260,6 +259,7 @@ final class AppState {
         punishments = []
         activeWeekLoaded = nil
         leaderboardLoaded = []
+        profilesLoaded = [:]
         activityFeedLoaded = []
         upcomingAssignmentsLoaded = []
         upcomingAssignmentForUser = nil
@@ -280,6 +280,13 @@ final class AppState {
         if useSupabase {
             Task { try? await supabaseService?.signOut() }
         }
+    }
+
+    /// Permanently deletes the current user's account and all data. Signs out on success.
+    func deleteAccount() async throws {
+        guard useSupabase, let svc = supabaseService else { return }
+        try await svc.deleteUser()
+        await MainActor.run { signOut() }
     }
 
     /// Call on launch when useSupabase to restore session and load user/group.
@@ -365,100 +372,161 @@ final class AppState {
         }
     }
 
-    /// Load group data from Supabase (when we have groupId).
+    /// Load group data from Supabase (when we have groupId). Coalesces concurrent calls.
     func refresh() async {
         guard useSupabase, let svc = supabaseService, let gid = groupId else {
             print("[\(dashboardLog)] refresh skipped: gid=\(groupId ?? "nil")")
             return
         }
+        if let existing = _refreshTask {
+            _refreshPending = true
+            await existing.value
+            if !_refreshPending { return }
+            _refreshPending = false
+        }
+        _refreshTask = Task {
+            defer {
+                if _refreshPending {
+                    _refreshPending = false
+                    Task { await refresh() }
+                }
+                _refreshTask = nil
+            }
+            await performRefresh(svc: svc, gid: gid)
+        }
+        await _refreshTask?.value
+    }
+
+    private func performRefresh(svc: SupabaseService, gid: String) async {
         isLoading = true
         loadError = nil
-        print("[\(dashboardLog)] refresh() start for group=\(gid.prefix(8))...")
-        defer { isLoading = false }
         let uid = currentUserId
+        defer { isLoading = false }
         do {
+            // Verify group still exists; if deleted, return user to create/join screen
+            if try await svc.getGroup(groupId: gid) == nil {
+                await MainActor.run { clearGroupState() }
+                return
+            }
             // Wave 1: parallel fetches that only need groupId
             async let membershipsTask = svc.getGroupMemberships(groupId: gid)
             async let activeWeekTask = svc.getActiveWeek(groupId: gid)
             async let leaderboardTask = svc.getLeaderboard(groupId: gid)
-            async let activityFeedTask = svc.getActivityFeed(groupId: gid, limit: 50)
+            async let activityFeedTask = svc.getActivityFeed(groupId: gid, limit: 15)
             async let punishmentsTask = svc.getAllPunishments(groupId: gid)
             async let activePunishmentTask = svc.getActivePunishmentForUser(userId: uid, groupId: gid)
 
-            memberships = try await membershipsTask
-            print("[\(dashboardLog)] refresh memberships=\(memberships.count)")
-            activeWeekLoaded = try await activeWeekTask
-            let hasWeek = activeWeekLoaded != nil
-            let hasChallenge = activeWeekLoaded?.challenge != nil
-            print("[\(dashboardLog)] refresh activeWeek=\(hasWeek), challenge=\(hasChallenge)")
-            leaderboardLoaded = try await leaderboardTask
-            print("[\(dashboardLog)] refresh leaderboard=\(leaderboardLoaded.count)")
-            activityFeedLoaded = try await activityFeedTask
-            print("[\(dashboardLog)] refresh activityFeed=\(activityFeedLoaded.count)")
-            punishments = try await punishmentsTask
-            activePunishment = try? await activePunishmentTask
+            let membershipsNew = try await membershipsTask
+            let activeWeekNew = try await activeWeekTask
+            let leaderboardNew = try await leaderboardTask
+            let activityFeedNew = try await activityFeedTask
+            let punishmentsNew = try await punishmentsTask
+            let activePunishmentNew = try? await activePunishmentTask
+
+            // Fetch member profiles for display names (used when no active challenge / empty leaderboard)
+            let memberIds = membershipsNew.map(\.userId)
+            let profilesNew = (try? await svc.getProfilesForUserIds(memberIds)) ?? [:]
 
             // Wave 2: parallel fetches that depend on activeWeek
-            async let upcomingTask = svc.getUpcomingAssignments(groupId: gid, excludeAssignmentId: activeWeekLoaded?.weekAssignment.id)
+            async let upcomingTask = svc.getUpcomingAssignments(groupId: gid, excludeAssignmentId: activeWeekNew?.weekAssignment.id)
             let logsTask: Task<[WorkoutLog], Error> = Task {
-                if let ch = activeWeekLoaded?.challenge {
+                if let ch = activeWeekNew?.challenge {
                     return try await svc.getWorkoutLogs(weekChallengeId: ch.id, userId: nil)
                 }
                 return []
             }
 
-            upcomingAssignmentsLoaded = try await upcomingTask
-            logs = (try? await logsTask.value) ?? []
-            print("[\(dashboardLog)] refresh logs=\(logs.count)")
+            let upcomingNew = try await upcomingTask
+            let logsNew = (try? await logsTask.value) ?? []
 
-            // Upcoming host banner: assignment where user is host, within 3 days, no challenge yet
+            var upcomingForUser: WeekAssignment?
             if let assignment = try? await svc.getUpcomingAssignmentForUser(userId: uid, groupId: gid, daysAhead: 3) {
                 let result = try? await svc.getChallengeForAssignment(assignmentId: assignment.id)
                 let (challenge, _) = result ?? (nil, [])
-                upcomingAssignmentForUser = challenge == nil ? assignment : nil
-            } else {
-                upcomingAssignmentForUser = nil
+                upcomingForUser = challenge == nil ? assignment : nil
             }
 
-            // Wave 3: punishment details (depend on activePunishment or punishments)
-            if let ap = activePunishment {
-                async let punishmentLogsTask = svc.getPunishmentLogs(punishmentId: ap.punishment.id)
-                async let punishmentProgressTask = svc.getUserPunishmentProgress(userId: uid, punishmentId: ap.punishment.id)
-                async let punishmentLeaderboardTask = svc.getPunishmentLeaderboard(punishmentId: ap.punishment.id)
-                punishmentLogs = (try? await punishmentLogsTask) ?? []
-                punishmentProgress = try? await punishmentProgressTask
-                punishmentLeaderboard = (try? await punishmentLeaderboardTask) ?? []
-                leaderboardPunishment = ap
+            // Wave 3: punishment details
+            var punishmentLogsNew: [PunishmentLog] = []
+            var punishmentProgressNew: PunishmentProgress?
+            var punishmentLeaderboardNew: [PunishmentProgress] = []
+            var leaderboardPunishmentNew: ActivePunishment?
+
+            if let ap = activePunishmentNew {
+                async let plTask = svc.getPunishmentLogs(punishmentId: ap.punishment.id)
+                async let ppTask = svc.getUserPunishmentProgress(userId: uid, punishmentId: ap.punishment.id)
+                async let pblTask = svc.getPunishmentLeaderboard(punishmentId: ap.punishment.id)
+                punishmentLogsNew = (try? await plTask) ?? []
+                punishmentProgressNew = try? await ppTask
+                punishmentLeaderboardNew = (try? await pblTask) ?? []
+                leaderboardPunishmentNew = ap
             } else {
-                punishmentLogs = []
-                punishmentProgress = nil
-                punishmentLeaderboard = []
-                let formatter = DateFormatter()
-                formatter.dateFormat = "yyyy-MM-dd"
-                let today = formatter.string(from: Date())
-                if let active = punishments.first(where: { today >= $0.startDate && today <= $0.endDate }) {
-                    async let leaderboardTask = svc.getPunishmentLeaderboard(punishmentId: active.id)
-                    async let exercisesTask = svc.getPunishmentExercises(punishmentId: active.id)
-                    async let logsTask = svc.getPunishmentLogs(punishmentId: active.id)
-                    punishmentLeaderboard = (try? await leaderboardTask) ?? []
-                    let exs = (try? await exercisesTask) ?? []
-                    leaderboardPunishment = ActivePunishment(punishment: active, exercises: exs, assignedUserIds: active.assignedUserIds)
-                    punishmentLogs = (try? await logsTask) ?? []
-                } else {
-                    leaderboardPunishment = nil
+                let today = Self.dateFormatterYYYYMMDD.string(from: Date())
+                if let active = punishmentsNew.first(where: { today >= $0.startDate && today <= $0.endDate }) {
+                    async let pblTask = svc.getPunishmentLeaderboard(punishmentId: active.id)
+                    async let exTask = svc.getPunishmentExercises(punishmentId: active.id)
+                    async let plTask = svc.getPunishmentLogs(punishmentId: active.id)
+                    punishmentLeaderboardNew = (try? await pblTask) ?? []
+                    let exs = (try? await exTask) ?? []
+                    leaderboardPunishmentNew = ActivePunishment(punishment: active, exercises: exs, assignedUserIds: active.assignedUserIds)
+                    punishmentLogsNew = (try? await plTask) ?? []
                 }
             }
-            saveToCache()
-            print("[\(dashboardLog)] refresh done")
+
+            // Batch all state updates to reduce re-renders
+            memberships = membershipsNew
+            activeWeekLoaded = activeWeekNew
+            leaderboardLoaded = leaderboardNew
+            profilesLoaded = profilesNew
+            activityFeedLoaded = activityFeedNew
+            punishments = punishmentsNew
+            activePunishment = activePunishmentNew
+            upcomingAssignmentsLoaded = upcomingNew
+            logs = logsNew
+            upcomingAssignmentForUser = upcomingForUser
+            punishmentLogs = punishmentLogsNew
+            punishmentProgress = punishmentProgressNew
+            punishmentLeaderboard = punishmentLeaderboardNew
+            leaderboardPunishment = leaderboardPunishmentNew
+
+            let cacheToSave = SessionCache(
+                currentUserId: uid,
+                currentUserDisplayName: currentUserDisplayNameStored ?? "You",
+                groupId: gid,
+                groupName: groupName,
+                groupInviteCode: groupInviteCode,
+                memberships: membershipsNew,
+                activeWeek: activeWeekNew,
+                logs: logsNew,
+                leaderboard: leaderboardNew,
+                profiles: profilesNew,
+                activityFeed: activityFeedNew,
+                upcomingAssignments: upcomingNew,
+                punishments: punishmentsNew,
+                activePunishment: activePunishmentNew,
+                punishmentLogs: punishmentLogsNew,
+                punishmentProgress: punishmentProgressNew,
+                punishmentLeaderboard: punishmentLeaderboardNew,
+                leaderboardPunishment: leaderboardPunishmentNew
+            )
+            Task.detached(priority: .utility) {
+                cacheToSave.save()
+            }
         } catch {
             loadError = error.localizedDescription
-            print("[\(dashboardLog)] refresh error: \(error)")
         }
     }
 
+    private static let dateFormatterYYYYMMDD: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.timeZone = TimeZone.current
+        return f
+    }()
+
     private func saveToCache() {
         guard let gid = groupId, !gid.isEmpty, let uid = currentUserIdFromSession, !uid.isEmpty else { return }
-        var cache = SessionCache(
+        let cache = SessionCache(
             currentUserId: uid,
             currentUserDisplayName: currentUserDisplayNameStored ?? "You",
             groupId: gid,
@@ -468,6 +536,7 @@ final class AppState {
             activeWeek: activeWeekLoaded,
             logs: logs,
             leaderboard: leaderboardLoaded,
+            profiles: profilesLoaded,
             activityFeed: activityFeedLoaded,
             upcomingAssignments: upcomingAssignmentsLoaded,
             punishments: punishments,
@@ -560,7 +629,9 @@ final class AppState {
         if useSupabase, let svc = supabaseService {
             do {
                 try await svc.deleteWorkoutLog(logId: logId)
-                saveToCache()
+                Task.detached(priority: .utility) { [weak self] in
+                    self?.saveToCache()
+                }
             } catch {
                 await MainActor.run { loadError = error.localizedDescription }
                 await refresh()

@@ -9,6 +9,19 @@ import Foundation
 
 enum ProgressCalculations {
 
+    private static let dateFormatterYYYYMMDD: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.timeZone = TimeZone.current
+        return f
+    }()
+
+    private static let iso8601Formatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
     /// Progress over time chart point.
     struct ChartPoint {
         let timestamp: String  // ISO 8601 for x-axis positioning
@@ -110,19 +123,16 @@ enum ProgressCalculations {
     }
 
     static func progressOverTime(logs: [WorkoutLog], weekStart: String, weekEnd: String, challenge: WeekChallenge, exercises: [StrengthExercise], memberIds: [String]) -> [ChartPoint] {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = TimeZone.current
         let cal = Calendar.current
         let startStr = String(weekStart.prefix(10))
         let endStr = String(weekEnd.prefix(10))
-        guard let startDay = formatter.date(from: startStr), let endDay = formatter.date(from: endStr) else { return [] }
+        guard let startDay = dateFormatterYYYYMMDD.date(from: startStr), let endDay = dateFormatterYYYYMMDD.date(from: endStr) else { return [] }
         let weekStartDate = cal.startOfDay(for: startDay)
         let weekEndDate = cal.date(bySettingHour: 23, minute: 59, second: 59, of: endDay) ?? endDay
         let now = Date()
 
         func effectiveTimestamp(for log: WorkoutLog) -> Date? {
-            if let created = log.createdAt, let d = ISO8601DateFormatter().date(from: created) {
+            if let created = log.createdAt, let d = iso8601Formatter.date(from: created) {
                 return d
             }
             if let created = log.createdAt {
@@ -131,46 +141,55 @@ enum ProgressCalculations {
                 fallback.timeZone = TimeZone(identifier: "UTC")
                 if let d = fallback.date(from: String(created.prefix(19))) { return d }
             }
-            guard let d = formatter.date(from: String(log.loggedAt.prefix(10))) else { return nil }
+            guard let d = dateFormatterYYYYMMDD.date(from: String(log.loggedAt.prefix(10))) else { return nil }
             return cal.date(bySettingHour: 12, minute: 0, second: 0, of: d)
         }
 
-        var timestamps: Set<Date> = [weekStartDate]
-        for log in logs {
-            if let t = effectiveTimestamp(for: log), t >= weekStartDate, t <= weekEndDate {
-                timestamps.insert(t)
-            }
-        }
-        if now >= weekStartDate, now <= weekEndDate {
-            timestamps.insert(now)
-        }
-        timestamps.insert(weekEndDate)
-
+        // Use one point per day (max ~7 for a week) instead of every log timestamp for performance
         var dayCurrent = weekStartDate
+        var timestamps: [Date] = []
         while dayCurrent <= weekEndDate {
-            timestamps.insert(dayCurrent)
+            if dayCurrent <= now {
+                timestamps.append(dayCurrent)
+            }
             dayCurrent = cal.date(byAdding: .day, value: 1, to: dayCurrent) ?? dayCurrent
         }
+        if timestamps.isEmpty { return [] }
 
-        let sorted = timestamps.sorted()
+        // Precompute logs grouped by user and date for O(1) lookup per point
+        var userLogsByDay: [String: [Date: [WorkoutLog]]] = [:]
+        for userId in memberIds {
+            let uid = userId.lowercased()
+            var byDay: [Date: [WorkoutLog]] = [:]
+            for log in logs where log.userId.lowercased() == uid {
+                guard let t = effectiveTimestamp(for: log), t >= weekStartDate, t <= weekEndDate else { continue }
+                let dayStart = cal.startOfDay(for: t)
+                byDay[dayStart, default: []].append(log)
+            }
+            userLogsByDay[uid] = byDay
+        }
+
         var points: [ChartPoint] = []
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        var accumulatedByUser: [String: [WorkoutLog]] = [:]
+        for uid in memberIds.map({ $0.lowercased() }) {
+            accumulatedByUser[uid] = []
+        }
 
-        for t in sorted {
-            guard t <= now else { continue }
+        for t in timestamps {
+            let dayStart = cal.startOfDay(for: t)
+            for uid in memberIds.map({ $0.lowercased() }) {
+                if let dayLogs = userLogsByDay[uid]?[dayStart] {
+                    accumulatedByUser[uid, default: []].append(contentsOf: dayLogs)
+                }
+            }
             var progressByUser: [String: Double] = [:]
             for userId in memberIds {
                 let uid = userId.lowercased()
-                let logsUpTo = logs.filter { log in
-                    guard let logT = effectiveTimestamp(for: log) else { return false }
-                    return log.userId.lowercased() == uid && logT <= t
-                }
+                let logsUpTo = accumulatedByUser[uid] ?? []
                 let prog = calculateUserProgress(userId: userId, logs: logsUpTo, challenge: challenge, exercises: exercises)
                 progressByUser[userId] = prog.totalProgress * 100
             }
-            let tsStr = iso.string(from: t)
-            points.append(ChartPoint(timestamp: tsStr, progressByUser: progressByUser))
+            points.append(ChartPoint(timestamp: iso8601Formatter.string(from: t), progressByUser: progressByUser))
         }
         return points
     }
